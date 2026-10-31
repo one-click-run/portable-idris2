@@ -1,5 +1,9 @@
 # Building and auditing a release
 
+For the exact inputs, public build log, Chinese step-by-step explanation, audit
+commands, and reproduction entry point for the current Core and Full releases,
+see [`REPRODUCING.md`](REPRODUCING.md).
+
 Core is built from pinned Idris 2 and Chez Scheme release tags by
 `scripts/build-toolchain.ps1`. Full is assembled by
 `scripts/build-full-toolchain.ps1` from exact Pack, collection, LSP-lib, and

@@ -71,6 +71,13 @@ function Clear-DirectoryContents([string]$Path) {
     }
 }
 
+function Copy-CanonicalPatch([string]$Source, [string]$Destination) {
+    # Match the patch bytes published by the official Windows build regardless
+    # of the local Git checkout's core.autocrlf setting.
+    $content = [IO.File]::ReadAllText($Source) -replace "`r?`n", "`r`n"
+    [IO.File]::WriteAllText($Destination, $content, [Text.UTF8Encoding]::new($false))
+}
+
 if ($PackCommit -notmatch '^[0-9a-f]{40}$' -or $PackDbCommit -notmatch '^[0-9a-f]{40}$') {
     throw "Pack and Pack DB must be pinned to full commit hashes."
 }
@@ -253,15 +260,16 @@ $fullComponents = @($manifest.components) + @(
 )
 $manifest.components = $fullComponents
 $patchPath = Join-Path $repoRoot "patches\pack-windows-mkdir.patch"
+$payloadPatchDir = Join-Path $payload "patches"
+New-Item -ItemType Directory -Path $payloadPatchDir -Force | Out-Null
+$payloadPackPatch = Join-Path $payloadPatchDir "pack-windows-mkdir.patch"
+Copy-CanonicalPatch $patchPath $payloadPackPatch
 $existingPatches = @($manifest.patches)
 $manifest | Add-Member -NotePropertyName patches -NotePropertyValue @($existingPatches + [ordered]@{
     path = "patches/pack-windows-mkdir.patch"
-    sha256 = (Get-FileHash -LiteralPath $patchPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    sha256 = (Get-FileHash -LiteralPath $payloadPackPatch -Algorithm SHA256).Hash.ToLowerInvariant()
 }) -Force
 [IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json -Depth 10) + "`n", [Text.UTF8Encoding]::new($false))
-$payloadPatchDir = Join-Path $payload "patches"
-New-Item -ItemType Directory -Path $payloadPatchDir -Force | Out-Null
-Copy-Item -LiteralPath $patchPath -Destination (Join-Path $payloadPatchDir "pack-windows-mkdir.patch") -Force
 
 $spdxPackages = @($fullComponents | ForEach-Object {
     [ordered]@{

@@ -142,6 +142,10 @@ jobs:
             Core contains Idris 2 and Chez Scheme. Full adds Pack, idris2-lsp, Git, MSYS2, GCC/GMP, and the RefC backend toolchain.
 
             Every ZIP has a matching SHA-256 file. The installer refuses unverified archives.
+
+            Build source: `${{ github.sha }}`
+            Build log: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            How the archives are made and reproduced: https://github.com/${{ github.repository }}/blob/${{ github.sha }}/REPRODUCING.md
           prerelease: false
           make_latest: false
           overwrite_files: true

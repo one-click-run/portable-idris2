@@ -10,6 +10,19 @@
 
 发布包承诺的组件在下载完成后均可离线使用。启动器不会调用 Pack、检查更新或自动下载内容。
 
+## 这个压缩包从哪里来
+
+Core 和 Full 都不是从维护者电脑里手工复制出来的黑盒。它们由本仓库的
+PowerShell 构建脚本在干净的 Windows GitHub Actions 运行器中生成：从固定的
+tag 或 commit 取得 Chez Scheme、Idris 2、Pack 和 LSP 源码，应用仓库内公开补丁，
+完成自举编译，再组装、测试和压缩。Full 中的 MSYS2/GCC 工具链也会列出实际
+打包的软件包版本。
+
+现行 Core/Full 发布包所用的全部提交、补丁哈希、构建提交、公开构建记录和复现
+命令都列在 [`REPRODUCING.md`](REPRODUCING.md)。自动构建的可执行定义是
+[`Publish toolchain` 工作流](.github/workflows/release-toolchain.yml)，没有未公开的
+本地打包步骤。
+
 ## 使用
 
 在希望创建环境的目录中打开 PowerShell，执行：
@@ -103,7 +116,7 @@ build\exec\hello-refc.exe
 和 SHA-256，生成来源清单与 SBOM，执行本地归档离线安装测试，并上传到固定的 `toolchain` Release。发布后还会重新运行公开的
 一行安装器验证 Core 与 Full。
 
-详细构建和审计方法见 [BUILDING.md](BUILDING.md)。本项目承诺“可审计、可重建”，暂不宣称不同机器构建出的 ZIP 能逐字节一致。
+构建原理见 [BUILDING.md](BUILDING.md)，现行版本的精确来源、复现命令和限制见 [REPRODUCING.md](REPRODUCING.md)。本项目承诺“可审计、可重建”，暂不宣称不同机器构建出的 ZIP 能逐字节一致。
 
 ## 安全与来源
 

@@ -34,6 +34,14 @@ function Copy-UpstreamLicense([string]$SourceRoot, [string]$Destination, [string
     }
 }
 
+function Copy-CanonicalPatch([string]$Source, [string]$Destination) {
+    # The official Windows release used CRLF patch files. Canonicalize the
+    # copy shipped in the archive so its recorded SHA-256 is independent of
+    # the builder's core.autocrlf setting.
+    $content = [IO.File]::ReadAllText($Source) -replace "`r?`n", "`r`n"
+    [IO.File]::WriteAllText($Destination, $content, [Text.UTF8Encoding]::new($false))
+}
+
 function Copy-MingwDependencies([string[]]$Roots, [string]$Destination) {
     New-Item -ItemType Directory -Path $Destination -Force | Out-Null
     $pending = [Collections.Generic.Queue[string]]::new()
@@ -123,10 +131,12 @@ Copy-Item -LiteralPath (Join-Path $repoRoot "Enter-PortableIdris2.ps1") -Destina
 Copy-Item -LiteralPath (Join-Path $repoRoot "LICENSE") -Destination $payload
 Copy-Item -LiteralPath (Join-Path $repoRoot "THIRD_PARTY_NOTICES.md") -Destination $payload
 Copy-Item -LiteralPath (Join-Path $repoRoot "OFFLINE-GUARANTEE.md") -Destination $payload
+Copy-Item -LiteralPath (Join-Path $repoRoot "REPRODUCING.md") -Destination $payload
 Copy-Item -LiteralPath (Join-Path $repoRoot "examples") -Destination $payload -Recurse
 $payloadPatchDir = Join-Path $payload "patches"
 New-Item -ItemType Directory -Path $payloadPatchDir -Force | Out-Null
-Copy-Item -LiteralPath $idrisPatchPath -Destination (Join-Path $payloadPatchDir "idris2-windows-data-directories.patch") -Force
+$payloadIdrisPatch = Join-Path $payloadPatchDir "idris2-windows-data-directories.patch"
+Copy-CanonicalPatch $idrisPatchPath $payloadIdrisPatch
 Copy-UpstreamLicense $idrisSource $licenses "Idris2"
 Copy-UpstreamLicense $chezSource $licenses "ChezScheme"
 
@@ -151,7 +161,7 @@ $manifest = [ordered]@{
     )
     patches = @([ordered]@{
         path = "patches/idris2-windows-data-directories.patch"
-        sha256 = (Get-FileHash -LiteralPath $idrisPatchPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        sha256 = (Get-FileHash -LiteralPath $payloadIdrisPatch -Algorithm SHA256).Hash.ToLowerInvariant()
     })
 }
 [IO.File]::WriteAllText((Join-Path $payload "SOURCE-MANIFEST.json"), ($manifest | ConvertTo-Json -Depth 8) + "`n", [Text.UTF8Encoding]::new($false))

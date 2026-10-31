@@ -1,3 +1,38 @@
+diff --git a/src/Compiler/RefC/CC.idr b/src/Compiler/RefC/CC.idr
+index ec425e0..eb39351 100644
+--- a/src/Compiler/RefC/CC.idr
++++ b/src/Compiler/RefC/CC.idr
+@@ -55,6 +55,12 @@ findLDLIBS
+ clibdirs : List String -> List String
+ clibdirs ds = map (\d => "-L" ++ d) ds
+ 
++quoteRefCArg : String -> String
++quoteRefCArg arg = "\"" ++ arg ++ "\""
++
++refCCmd : List String -> String
++refCCmd = unwords . map quoteRefCArg
++
+ -- cincdirs : List String -> String
+ -- cincdirs ds = concat (map (\d => "-I" ++ d ++ " ") ds)
+ 
+@@ -74,7 +80,7 @@ compileCObjectFile {asLibrary} sourceFile objectFile =
+ 
+      let libraryFlag = if asLibrary then ["-fpic"] else []
+ 
+-     let runccobj = (escapeCmd $
++     let runccobj = (refCCmd $
+          [cc, "-Werror", "-c"] ++ libraryFlag ++ [sourceFile,
+               "-o", objectFile,
+               "-I" ++ refcDir,
+@@ -106,7 +112,7 @@ compileCFile {asShared} objectFile outFile =
+ 
+      let sharedFlag = if asShared then ["-shared"] else []
+ 
+-     let runcc = (escapeCmd $
++     let runcc = (refCCmd $
+          [cc, "-Werror"] ++ sharedFlag ++ [objectFile,
+               "-o", outFile,
+               supportFile,
 diff --git a/src/Core/Directory.idr b/src/Core/Directory.idr
 index 938006d..628509b 100644
 --- a/src/Core/Directory.idr

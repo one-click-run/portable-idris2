@@ -1,5 +1,5 @@
 diff --git a/src/Pack/Core/IO.idr b/src/Pack/Core/IO.idr
-index e359ded..11137a6 100644
+index e359ded..0ed5f6d 100644
 --- a/src/Pack/Core/IO.idr
 +++ b/src/Pack/Core/IO.idr
 @@ -171,14 +171,19 @@ sysRunWithEnv cmd env = do
@@ -8,7 +8,7 @@ index e359ded..11137a6 100644
  ||| Checks if a file at the given location exists.
 +pathExists : HasIO io => String -> io Bool
 +pathExists path = do
-+  (_, code) <- System.run (escapeCmd ["env.exe", "test", "-e", path])
++  (_, code) <- assert_total $ System.run (escapeCmd ["env.exe", "test", "-e", path])
 +  pure (code == 0)
 +
  export %inline

@@ -1,0 +1,101 @@
+name: Publish toolchain
+
+on:
+  workflow_dispatch:
+    inputs:
+      idris2:
+        description: Idris 2 release tag
+        required: true
+        default: v0.8.0
+      chez:
+        description: Chez Scheme release tag
+        required: true
+        default: v10.4.1
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      MSYSTEM: MINGW64
+      MSYS2_PATH_TYPE: inherit
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install MSYS2 build dependencies
+        shell: powershell
+        run: |
+          C:\msys64\usr\bin\bash.exe -l -c "pacman -S --noconfirm --needed tar make mingw-w64-x86_64-gcc"
+
+      - name: Build portable toolchain from source
+        shell: powershell
+        run: |
+          .\scripts\build-toolchain.ps1 `
+            -IdrisVersion '${{ inputs.idris2 }}' `
+            -ChezVersion '${{ inputs.chez }}' `
+            -OutputDirectory "$env:RUNNER_TEMP\dist"
+
+      - name: Relocation and compilation smoke test
+        shell: powershell
+        run: |
+          $moved = Join-Path $env:RUNNER_TEMP "moved portable idris2"
+          Copy-Item -LiteralPath .\.build\payload -Destination $moved -Recurse
+          & powershell -NoProfile -ExecutionPolicy Bypass -File "$moved\Enter-PortableIdris2.ps1" -Check
+          if ($LASTEXITCODE -ne 0) { throw "Relocated self-check failed." }
+
+          $env:IDRIS2_PREFIX = Join-Path $moved "idris2"
+          $env:CHEZ = Join-Path $moved "chez\bin\ta6nt\scheme.exe"
+          $env:PATH = "$(Join-Path $moved 'idris2\bin');$(Join-Path $moved 'chez\bin\ta6nt');$(Join-Path $moved 'runtime');$env:PATH"
+          Push-Location $moved
+          try {
+            & idris2 .\examples\hello\Main.idr -o hello
+            if ($LASTEXITCODE -ne 0) { throw "Hello World compilation failed." }
+            $hello = Get-ChildItem -LiteralPath . -Filter hello.exe -Recurse | Select-Object -First 1
+            if (-not $hello) { throw "Compilation did not produce hello.exe." }
+            $output = (& $hello.FullName).Trim()
+            if ($output -ne "Hello from portable Idris 2!") {
+              throw "Unexpected Hello World output: $output"
+            }
+          } finally {
+            Pop-Location
+          }
+
+      - name: Publish organization-hosted assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: toolchain
+          name: Portable Idris 2 toolchain
+          body: |
+            Windows x86-64 portable Idris 2 and Chez Scheme toolchain built from pinned upstream source releases.
+
+            Every ZIP has a matching SHA-256 file. The installer refuses unverified archives.
+          prerelease: false
+          make_latest: false
+          overwrite_files: true
+          files: |
+            ${{ runner.temp }}/dist/*.zip
+            ${{ runner.temp }}/dist/*.sha256
+
+      - name: End-to-end test the public one-line installer
+        shell: powershell
+        run: |
+          $testRoot = Join-Path $env:RUNNER_TEMP "public-installer-e2e"
+          New-Item -ItemType Directory -Path $testRoot -Force | Out-Null
+          Push-Location $testRoot
+          try {
+            $asset = (Get-ChildItem "$env:RUNNER_TEMP\dist\portable-idris2-*.zip" | Select-Object -First 1).Name
+            $env:ONE_CLICK_RUN_PORTABLE_IDRIS2_SELECTED_ASSET = $asset
+            $env:ONE_CLICK_RUN_PORTABLE_IDRIS2_INSTALL_NAME = "e2e"
+            $installer = "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/init.ps1"
+            Invoke-RestMethod $installer | Invoke-Expression
+
+            $portableRoot = Join-Path $testRoot "OCR-portable-idris2-e2e"
+            & powershell -NoProfile -ExecutionPolicy Bypass -File "$portableRoot\Enter-PortableIdris2.ps1" -Check
+            if ($LASTEXITCODE -ne 0) { throw "Public installation self-check failed." }
+          } finally {
+            Pop-Location
+          }
+

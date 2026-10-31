@@ -2,7 +2,7 @@ diff --git a/src/Pack/Core/IO.idr b/src/Pack/Core/IO.idr
 index e359ded..0ed5f6d 100644
 --- a/src/Pack/Core/IO.idr
 +++ b/src/Pack/Core/IO.idr
-@@ -171,14 +171,19 @@ sysRunWithEnv cmd env = do
+@@ -171,14 +171,17 @@ sysRunWithEnv cmd env = do
  --------------------------------------------------------------------------------
  
  ||| Checks if a file at the given location exists.

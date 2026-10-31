@@ -26,6 +26,10 @@ foreach ($file in $files) {
     Write-Host "Syntax OK: $file"
 }
 
+& node --check (Join-Path $repoRoot "scripts\test-lsp-hover.js")
+if ($LASTEXITCODE -ne 0) { throw "JavaScript syntax validation failed for scripts\test-lsp-hover.js" }
+Write-Host "Syntax OK: scripts\test-lsp-hover.js"
+
 $init = Get-Content -LiteralPath (Join-Path $repoRoot "init.ps1") -Raw
 foreach ($required in @("Get-FileHash", "SHA-256", "browser_download_url", "Enter-PortableIdris2.ps1", "--continue-at", "--retry-all-errors", '$Archive', '$localArchive')) {
     if (-not $init.Contains($required)) {
@@ -63,6 +67,8 @@ foreach ($requiredFile in @("OFFLINE-GUARANTEE.md", "BUILDING.md", "REPRODUCING.
 }
 foreach ($requiredFile in @(
     "Launch-Idris2-LSP.cmd",
+    "native\Launch-Idris2-LSP.c",
+    "scripts\test-lsp-hover.js",
     "examples\hello\hello.ipkg",
     "vscode\idris2\settings.json",
     "vscode\idris2\extensions.json"

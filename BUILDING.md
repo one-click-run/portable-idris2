@@ -14,6 +14,13 @@ Each archive contains `SOURCE-MANIFEST.json`, `SBOM.spdx.json`, third-party
 notices and licenses, and `OFFLINE-GUARANTEE.md`. The manifest and SBOM are also
 published as separate Release assets.
 
+The Full build also compiles `native/Launch-Idris2-LSP.c` with the GCC included
+in the bundled MSYS2 tree. Chez on Windows emits LF-only LSP headers, while VS
+Code requires the protocol's CRLF framing. The native proxy launches the exact
+bundled Scheme program, preserves stdin and JSON bodies byte-for-byte, and only
+canonicalizes LSP headers. Its exact source is retained in the ZIP under
+`sources/`; source and executable SHA-256 values are recorded in the manifest.
+
 The normal rebuild command is:
 
 ```powershell

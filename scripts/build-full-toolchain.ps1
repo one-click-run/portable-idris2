@@ -241,6 +241,15 @@ Copy-Item -Path (Join-Path $lspBuild "*") -Destination $portableBin -Recurse -Fo
 # package hooks, and the RefC backend. Remove only caches and transient homes.
 $bundledMsys = Join-Path $payload "msys2"
 Copy-Item -LiteralPath $MsysRoot -Destination $bundledMsys -Recurse
+$payloadSources = Join-Path $payload "sources"
+New-Item -ItemType Directory -Path $payloadSources -Force | Out-Null
+$launcherSource = Join-Path $payloadSources "Launch-Idris2-LSP.c"
+Copy-Item -LiteralPath (Join-Path $repoRoot "native\Launch-Idris2-LSP.c") -Destination $launcherSource
+$nativeLauncher = Join-Path $payload "Launch-Idris2-LSP.exe"
+$bundledGcc = Join-Path $bundledMsys "mingw64\bin\gcc.exe"
+$env:PATH = "$(Join-Path $bundledMsys 'mingw64\bin');$(Join-Path $bundledMsys 'usr\bin');$env:PATH"
+& $bundledGcc -O2 -municode $launcherSource -o $nativeLauncher
+if ($LASTEXITCODE -ne 0) { throw "Failed to build the native Idris 2 LSP proxy." }
 Clear-DirectoryContents (Join-Path $bundledMsys "var\cache\pacman\pkg")
 Clear-DirectoryContents (Join-Path $bundledMsys "tmp")
 Clear-DirectoryContents (Join-Path $bundledMsys "home")
@@ -275,6 +284,14 @@ $existingPatches = @($manifest.patches)
 $manifest | Add-Member -NotePropertyName patches -NotePropertyValue @($existingPatches + [ordered]@{
     path = "patches/pack-windows-mkdir.patch"
     sha256 = (Get-FileHash -LiteralPath $payloadPackPatch -Algorithm SHA256).Hash.ToLowerInvariant()
+}) -Force
+$manifest | Add-Member -NotePropertyName customArtifacts -NotePropertyValue @([ordered]@{
+    path = "Launch-Idris2-LSP.exe"
+    source = "sources/Launch-Idris2-LSP.c"
+    compiler = "bundled MSYS2 GCC"
+    purpose = "Preserve LSP framing while launching the bundled Scheme server on Windows"
+    sourceSha256 = (Get-FileHash -LiteralPath $launcherSource -Algorithm SHA256).Hash.ToLowerInvariant()
+    binarySha256 = (Get-FileHash -LiteralPath $nativeLauncher -Algorithm SHA256).Hash.ToLowerInvariant()
 }) -Force
 [IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json -Depth 10) + "`n", [Text.UTF8Encoding]::new($false))
 

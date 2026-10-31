@@ -55,8 +55,12 @@ SBOM，`*.sha256` 校验整个 ZIP。Full 内的 `MSYS2-PACKAGES.txt` 列出实�
 3. 它按 commit 取得并编译 Pack，只取得 LSP 必需的 `LSP-lib` 和 `idris2-lsp`，不遍历整个远端包集合。
 4. 两个 Windows 兼容补丁在源码树中公开应用，补丁哈希写入 manifest。
 5. runner 上完整的 MSYS2/Git/GCC/GMP 开发环境被复制进 Full；缓存、临时目录和用户目录被清空，实际包清单写入 `MSYS2-PACKAGES.txt`。
-6. 工作流把环境复制到含空格的新路径，并在无效网络代理下分别用 Chez 和 RefC 编译、运行 Hello World。
-7. Core 和 Full 都通过本地归档离线安装测试后才上传。上传后，公开的一行安装器还会分别安装两种包并再次自检。
+6. Full 用包内 MSYS2 GCC 编译 `native/Launch-Idris2-LSP.c`。该原生代理只把 Windows Chez
+   产生的 LF-only LSP 消息头规范化为协议要求的 CRLF，JSON 正文和 stdin 保持原始字节；完全相同的
+   C 源码随 ZIP 放在 `sources/`，源码和 EXE 的 SHA-256 写入 manifest。
+7. 工作流把环境复制到含空格的新路径，并在无效网络代理下分别用 Chez 和 RefC 编译、运行 Hello World，
+   再发送 `didOpen` 和 `textDocument/hover`，必须实际得到 `main : IO ()` 才算 LSP 可用。
+8. Core 和 Full 都通过本地归档离线安装测试后才上传。上传后，公开的一行安装器还会分别安装两种包并再次验收。
 
 流程的可执行定义是
 [`release-toolchain.yml`](.github/workflows/release-toolchain.yml)、

@@ -23,7 +23,7 @@ $env:XDG_STATE_HOME = Join-Path $data "xdg-state"
 $env:PATH = "$(Join-Path $root 'bin');$($managedIdris.Directory.FullName);$(Join-Path $root 'chez\bin\ta6nt');$(Join-Path $root 'runtime');$(Join-Path $root 'msys2\mingw64\bin');$(Join-Path $root 'msys2\usr\bin');$env:PATH"
 
 $workspace = Join-Path $root "examples\hello"
-$lspLauncher = Join-Path $root "Launch-Idris2-LSP.cmd"
+$lspLauncher = Join-Path $root "Launch-Idris2-LSP.exe"
 if (-not (Test-Path -LiteralPath $lspLauncher -PathType Leaf)) { throw "Idris 2 LSP launcher is missing: $lspLauncher" }
 $settingsPath = Join-Path $workspace ".vscode\settings.json"
 $settings = [ordered]@{

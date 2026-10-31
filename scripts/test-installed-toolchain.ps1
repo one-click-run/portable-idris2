@@ -65,10 +65,11 @@ try {
         $refcOutput = (& $refc.FullName).Trim()
         if ($refcOutput -ne "Hello from portable Idris 2!") { throw "Unexpected RefC output: $refcOutput" }
 
-        & (Join-Path $PSScriptRoot "test-lsp-protocol.ps1") `
-            -ServerCommand (Join-Path $rootPath "Launch-Idris2-LSP.cmd") `
-            -WorkingDirectory (Join-Path $rootPath "examples\hello")
-        if ($LASTEXITCODE -ne 0) { throw "Idris 2 LSP protocol test failed." }
+        & node (Join-Path $PSScriptRoot "test-lsp-hover.js") `
+            (Join-Path $rootPath "Launch-Idris2-LSP.exe") `
+            (Join-Path $rootPath "examples\hello") `
+            (Join-Path $rootPath "examples\hello\Main.idr")
+        if ($LASTEXITCODE -ne 0) { throw "Idris 2 LSP hover test failed." }
     }
 } finally {
     Pop-Location

@@ -135,26 +135,28 @@ try {
     New-Item -ItemType Directory -Path $work, $staging | Out-Null
 
     if ($localArchive) {
-        Write-Step "Copying the verified local release files"
-        Copy-Item -LiteralPath $localArchive -Destination $archive
-        Copy-Item -LiteralPath $localChecksum -Destination $checksumFile
+        Write-Step "Verifying the local release files"
+        $archiveForInstall = $localArchive
+        $checksumForInstall = $localChecksum
     } else {
         Write-Step "Downloading $($asset.name)"
         Receive-File -Uri $asset.browser_download_url -Destination $archive
         Receive-File -Uri $checksumAsset[0].browser_download_url -Destination $checksumFile
+        $archiveForInstall = $archive
+        $checksumForInstall = $checksumFile
     }
-    $checksumText = [IO.File]::ReadAllText($checksumFile)
+    $checksumText = [IO.File]::ReadAllText($checksumForInstall)
     $expected = ([regex]::Match($checksumText, '(?i)\b[0-9a-f]{64}\b')).Value.ToLowerInvariant()
     if (-not $expected) {
         throw "Could not parse the SHA-256 checksum file."
     }
-    $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+    $actual = (Get-FileHash -LiteralPath $archiveForInstall -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($actual -ne $expected) {
         throw "SHA-256 verification failed. Expected $expected but got $actual."
     }
 
     Write-Step "Extracting the toolchain"
-    Expand-Archive -LiteralPath $archive -DestinationPath $staging
+    Expand-Archive -LiteralPath $archiveForInstall -DestinationPath $staging
     if (-not (Test-Path -LiteralPath (Join-Path $staging "Enter-PortableIdris2.ps1"))) {
         throw "The toolchain archive has an invalid layout."
     }

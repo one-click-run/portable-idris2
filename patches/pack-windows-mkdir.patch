@@ -7,9 +7,7 @@ index e359ded..0ed5f6d 100644
  
  ||| Checks if a file at the given location exists.
 +pathExists : HasIO io => String -> io Bool
-+pathExists path = do
-+  (_, code) <- assert_total $ System.run (escapeCmd ["env.exe", "test", "-e", path])
-+  pure (code == 0)
++pathExists path = System.Directory.exists (replace "/" "\\" path)
 +
  export %inline
  exists : HasIO io => (dir : Path Abs) -> io Bool

@@ -43,6 +43,11 @@ Full 版还会生成相邻的 `OCR-portable-idris2-<版本>-VSCode.cmd`。双击
 用户设置或示例目录的 `.vscode/settings.json`。自定义 VS Code 位置可通过
 `ONE_CLICK_RUN_VSCODE` 指向 `code.cmd` 或 `Code.exe`。
 
+VS Code 入口会在窗口中显示隔离配置的位置。首次启动时，它会在
+`data\vscode-user-data\User\settings.json` 创建默认设置；以后的启动不会覆盖用户在该
+配置中所做的主题、字体、快捷键等修改。若要恢复到首次启动状态，请先关闭由此入口
+打开的 VS Code 窗口，再删除整个 `data\vscode-user-data` 目录并重新运行入口。
+
 完全离线的目标机器可以先从 Release 复制 ZIP 和相邻的 `.sha256` 文件，再运行：
 
 ```powershell

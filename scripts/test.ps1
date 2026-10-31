@@ -47,6 +47,12 @@ $vscodeEntry = Get-Content -LiteralPath (Join-Path $repoRoot "Open-PortableIdris
 foreach ($required in @("Portable-Idris2.code-workspace", "ONE_CLICK_RUN_VSCODE", "--extensions-dir", "--user-data-dir", "extensions.autoUpdate")) {
     if (-not $vscodeEntry.Contains($required)) { throw "VS Code entry point is missing prerequisite or isolation behavior: $required" }
 }
+foreach ($required in @('$settingsPath', 'if (-not (Test-Path -LiteralPath $settingsPath -PathType Leaf))')) {
+    if (-not $vscodeEntry.Contains($required)) { throw "VS Code entry point must initialize isolated settings only when they are missing: $required" }
+}
+foreach ($required in @('OCR_VSCODE_USER_DATA', 'To reset this isolated VS Code profile')) {
+    if (-not $init.Contains($required)) { throw "Generated VS Code CMD must explain the isolated profile path and reset procedure: $required" }
+}
 if ($vscodeEntry.Contains('.vscode\settings.json')) { throw "VS Code entry point must not modify folder settings." }
 $extensionManifest = Get-Content -LiteralPath (Join-Path $repoRoot "vscode-extensions\manifest.json") -Raw | ConvertFrom-Json
 if (@($extensionManifest.extensions).Count -ne 1) { throw "Idris 2 Full release must pin exactly one client VSIX." }

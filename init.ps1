@@ -219,6 +219,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0$folderName\Enter-Port
 @echo off
 setlocal
 title Portable Idris 2 - VS Code
+set "OCR_VSCODE_USER_DATA=%~dp0$folderName\data\vscode-user-data"
+echo Portable VS Code settings:
+echo   %OCR_VSCODE_USER_DATA%\User\settings.json
+echo To reset this isolated VS Code profile, close its windows and delete:
+echo   %OCR_VSCODE_USER_DATA%
+echo Then run this launcher again.
+echo.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0$folderName\Open-PortableIdris2-VSCode.ps1"
 set "OCR_EXIT=%ERRORLEVEL%"
 if not "%OCR_EXIT%"=="0" (

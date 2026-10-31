@@ -44,10 +44,18 @@ foreach ($required in @('$vscodeLauncher', 'Open-PortableIdris2-VSCode.ps1')) {
     if (-not $init.Contains($required)) { throw "init.ps1 is missing the VS Code entry point: $required" }
 }
 $vscodeEntry = Get-Content -LiteralPath (Join-Path $repoRoot "Open-PortableIdris2-VSCode.ps1") -Raw
-foreach ($required in @("Portable-Idris2.code-workspace", "ONE_CLICK_RUN_VSCODE", "bamboo.idris2-lsp", "--list-extensions")) {
+foreach ($required in @("Portable-Idris2.code-workspace", "ONE_CLICK_RUN_VSCODE", "--extensions-dir", "--user-data-dir", "extensions.autoUpdate")) {
     if (-not $vscodeEntry.Contains($required)) { throw "VS Code entry point is missing prerequisite or isolation behavior: $required" }
 }
 if ($vscodeEntry.Contains('.vscode\settings.json')) { throw "VS Code entry point must not modify folder settings." }
+$extensionManifest = Get-Content -LiteralPath (Join-Path $repoRoot "vscode-extensions\manifest.json") -Raw | ConvertFrom-Json
+if (@($extensionManifest.extensions).Count -ne 1) { throw "Idris 2 Full release must pin exactly one client VSIX." }
+if ($extensionManifest.extensions[0].id -ne 'bamboo.idris2-lsp') { throw "Idris 2 VSIX manifest has the wrong extension ID." }
+foreach ($extension in $extensionManifest.extensions) {
+    if ($extension.sha256 -notmatch '^[0-9a-f]{64}$' -or $extension.downloadUrl -notlike 'https://github.com/one-click-run/portable-idris2/releases/*') {
+        throw "Invalid self-hosted VSIX metadata for $($extension.id)."
+    }
+}
 if ($init -match '(?m)^\s*Expand-Archive\b') {
     throw "init.ps1 must not use the unreliable Windows PowerShell Expand-Archive path."
 }
@@ -73,6 +81,7 @@ foreach ($requiredFile in @(
     "Launch-Idris2-LSP.cmd",
     "native\Launch-Idris2-LSP.c",
     "scripts\test-lsp-hover.js",
+    "vscode-extensions\manifest.json",
     "examples\hello\hello.ipkg",
     "vscode\idris2\extensions.json"
 )) {

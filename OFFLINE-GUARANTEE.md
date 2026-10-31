@@ -5,9 +5,11 @@ component advertised as part of that edition works without a network connection.
 
 Core guarantees offline Idris 2 compilation, standard libraries, the Chez
 Scheme backend, and the included examples. Full additionally guarantees the
-bundled language server, RefC backend, GCC, Git, Bash, Make, and Pack executable.
-The launcher never invokes Pack, downloads files, checks for updates, or contacts
-a package collection.
+bundled language server, RefC backend, GCC, Git, Bash, Make, Pack executable, and
+pinned VS Code client extension. The launcher installs the extension from the
+bundled VSIX into an isolated directory and disables extension updates there. It
+never invokes Pack, downloads files, checks for updates, or contacts a package
+collection. VS Code itself must already be installed.
 
 This guarantee does not include packages absent from the archive. A user-issued
 `pack install` for an unbundled package is an explicit request for external

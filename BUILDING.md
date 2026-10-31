@@ -20,6 +20,9 @@ Code requires the protocol's CRLF framing. The native proxy launches the exact
 bundled Scheme program, preserves stdin and JSON bodies byte-for-byte, and only
 canonicalizes LSP headers. Its exact source is retained in the ZIP under
 `sources/`; source and executable SHA-256 values are recorded in the manifest.
+Full also fetches the pinned VSIX declared by `vscode-extensions/manifest.json`
+from this organization's input Release, verifies its SHA-256, and stores it in
+the payload. No extension download occurs at runtime.
 
 The normal rebuild command is:
 

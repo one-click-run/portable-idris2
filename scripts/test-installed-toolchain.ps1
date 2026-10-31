@@ -57,6 +57,8 @@ try {
     if ($isFull) {
         & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $rootPath "Open-PortableIdris2-VSCode.ps1") -Check
         if ($LASTEXITCODE -ne 0) { throw "VS Code integration check failed." }
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $rootPath "Open-PortableIdris2-VSCode.ps1") -CheckExtensions
+        if ($LASTEXITCODE -ne 0) { throw "Offline bundled extension installation failed." }
 
         & idris2 --cg refc ".\examples\hello\Main.idr" -o "ci-hello-refc"
         if ($LASTEXITCODE -ne 0) { throw "RefC compilation failed." }

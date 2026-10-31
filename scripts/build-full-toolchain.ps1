@@ -115,6 +115,21 @@ $exampleVscode = Join-Path $payload "examples\hello\.vscode"
 New-Item -ItemType Directory -Path $exampleVscode -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $repoRoot "vscode\idris2\extensions.json") -Destination $exampleVscode
 
+# Pin and self-host the VSIX so runtime use never needs the Marketplace.
+$extensionManifestSource = Join-Path $repoRoot "vscode-extensions\manifest.json"
+$extensionManifest = Get-Content -LiteralPath $extensionManifestSource -Raw | ConvertFrom-Json
+$payloadExtensions = Join-Path $payload "vscode-extensions"
+New-Item -ItemType Directory -Path $payloadExtensions -Force | Out-Null
+Copy-Item -LiteralPath $extensionManifestSource -Destination (Join-Path $payloadExtensions "extensions.json")
+foreach ($extension in $extensionManifest.extensions) {
+    $destination = Join-Path $payloadExtensions $extension.file
+    Invoke-WebRequest -Uri $extension.downloadUrl -UseBasicParsing -OutFile $destination
+    $actualHash = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actualHash -ne $extension.sha256) {
+        throw "VSIX checksum mismatch for $($extension.file): expected $($extension.sha256), got $actualHash"
+    }
+}
+
 $collectionUrl = "https://raw.githubusercontent.com/stefan-hoeck/idris2-pack-db/$PackDbCommit/collections/$PackCollection.toml"
 $collectionFile = Join-Path $packState "db\$PackCollection.toml"
 New-Item -ItemType Directory -Path (Split-Path -Parent $collectionFile) -Force | Out-Null
@@ -272,7 +287,9 @@ $fullComponents = @($manifest.components) + @(
     [pscustomobject]@{ name = "LSP-lib"; version = $((Get-CollectionPackage 'lsp-lib').Commit.Substring(0, 12)); commit = (Get-CollectionPackage 'lsp-lib').Commit; source = (Get-CollectionPackage 'lsp-lib').Url; license = "BSD-3-Clause" },
     [pscustomobject]@{ name = "idris2-lsp"; version = $lspPackage.Commit.Substring(0, 12); commit = $lspPackage.Commit; source = $lspPackage.Url; license = "BSD-3-Clause" },
     [pscustomobject]@{ name = "MSYS2 toolchain"; version = "package-list-in-archive"; commit = "NOASSERTION"; source = "https://packages.msys2.org/"; license = "various" }
-)
+) + @($extensionManifest.extensions | ForEach-Object {
+    [pscustomobject]@{ name = "VS Code extension $($_.id)"; version = $_.version; commit = "NOASSERTION"; source = $_.upstream; hostedInput = $_.downloadUrl; sha256 = $_.sha256; license = $_.license }
+})
 $manifest.components = $fullComponents
 $patchPath = Join-Path $repoRoot "patches\pack-windows-mkdir.patch"
 $payloadPatchDir = Join-Path $payload "patches"

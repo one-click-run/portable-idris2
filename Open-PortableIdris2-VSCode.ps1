@@ -1,13 +1,12 @@
 param(
     [switch]$Check,
     [string]$CodePath = $env:ONE_CLICK_RUN_VSCODE,
-    [switch]$InstallMissingExtension
+    [switch]$CheckExtensions
 )
 
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 $data = Join-Path $root "data"
-$extensionId = "bamboo.idris2-lsp"
 
 function Find-VSCode([string]$RequestedPath) {
     if ($RequestedPath) {
@@ -31,26 +30,53 @@ function Find-VSCode([string]$RequestedPath) {
     throw "Microsoft Visual Studio Code was not found. Install VS Code, or set ONE_CLICK_RUN_VSCODE to code.cmd or Code.exe."
 }
 
-function Test-OrInstallExtension([string]$VSCode, [string]$Extension) {
-    $installed = @(& $VSCode --list-extensions 2>&1)
-    if ($LASTEXITCODE -ne 0) { throw "VS Code could not list installed extensions (exit code $LASTEXITCODE)." }
-    if ($installed -contains $Extension) { return }
+function Read-BundledExtensionManifest {
+    $manifestPath = Join-Path $root "vscode-extensions\extensions.json"
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) { throw "Bundled extension manifest is missing: $manifestPath" }
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    foreach ($extension in $manifest.extensions) {
+        $vsix = Join-Path (Split-Path -Parent $manifestPath) $extension.file
+        if (-not (Test-Path -LiteralPath $vsix -PathType Leaf)) { throw "Bundled VSIX is missing: $vsix" }
+        $actual = (Get-FileHash -LiteralPath $vsix -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($actual -ne $extension.sha256) { throw "Bundled VSIX checksum mismatch: $($extension.file)" }
+    }
+    return $manifest
+}
 
-    Write-Warning "Required VS Code extension '$Extension' is not installed."
-    $install = $InstallMissingExtension
-    if (-not $install -and [Environment]::UserInteractive) {
-        $answer = Read-Host "Install it now from the VS Code Marketplace? This requires network access. [y/N]"
-        $install = $answer -match '^(?i:y|yes)$'
+function Install-BundledExtensions([string]$VSCode, $Manifest) {
+    $versionText = @(& $VSCode --version 2>&1)[0]
+    if ($LASTEXITCODE -ne 0 -or -not $versionText) { throw "VS Code could not report its version." }
+    if ([version]$versionText -lt [version]$Manifest.minimumVSCodeVersion) {
+        throw "VS Code $versionText is too old. This portable environment requires VS Code $($Manifest.minimumVSCodeVersion) or newer."
     }
-    if (-not $install) {
-        throw "The required extension is missing. Install it with: `"$VSCode`" --install-extension $Extension"
+
+    $userData = Join-Path $data "vscode-user-data"
+    $extensionsDir = Join-Path $data "vscode-extensions"
+    $userSettingsDir = Join-Path $userData "User"
+    New-Item -ItemType Directory -Path $extensionsDir, $userSettingsDir -Force | Out-Null
+    $isolatedSettings = [ordered]@{
+        "extensions.autoCheckUpdates" = $false
+        "extensions.autoUpdate" = $false
+        "telemetry.telemetryLevel" = "off"
     }
-    & $VSCode --install-extension $Extension
-    if ($LASTEXITCODE -ne 0) { throw "VS Code failed to install extension '$Extension' (exit code $LASTEXITCODE)." }
-    $installed = @(& $VSCode --list-extensions 2>&1)
-    if ($LASTEXITCODE -ne 0 -or $installed -notcontains $Extension) {
-        throw "VS Code reported success, but extension '$Extension' is still unavailable."
+    [IO.File]::WriteAllText((Join-Path $userSettingsDir "settings.json"), (($isolatedSettings | ConvertTo-Json) + [Environment]::NewLine), [Text.UTF8Encoding]::new($false))
+
+    $installed = @(& $VSCode --user-data-dir $userData --extensions-dir $extensionsDir --list-extensions --show-versions 2>&1)
+    if ($LASTEXITCODE -ne 0) { throw "VS Code could not inspect the portable extension directory." }
+    foreach ($extension in $Manifest.extensions) {
+        $expected = "$($extension.id)@$($extension.version)"
+        if ($installed -notcontains $expected) {
+            $vsix = Join-Path $root "vscode-extensions\$($extension.file)"
+            & $VSCode --user-data-dir $userData --extensions-dir $extensionsDir --install-extension $vsix --force | Out-Host
+            if ($LASTEXITCODE -ne 0) { throw "Offline installation failed for $expected." }
+        }
     }
+    $installed = @(& $VSCode --user-data-dir $userData --extensions-dir $extensionsDir --list-extensions --show-versions 2>&1)
+    foreach ($extension in $Manifest.extensions) {
+        $expected = "$($extension.id)@$($extension.version)"
+        if ($installed -notcontains $expected) { throw "Portable extension verification failed: $expected" }
+    }
+    return [pscustomobject]@{ UserData = $userData; Extensions = $extensionsDir }
 }
 
 $packState = Join-Path $data "pack-state"
@@ -94,12 +120,18 @@ $writtenWorkspace = Get-Content -LiteralPath $workspaceFile -Raw | ConvertFrom-J
 if ($writtenWorkspace.settings.'idris2-lsp.path' -ne $lspLauncher) {
     throw "The dedicated VS Code workspace does not point at the bundled Idris 2 LSP launcher."
 }
+$extensionManifest = Read-BundledExtensionManifest
 if ($Check) {
     Write-Host "VS Code Idris 2 workspace configuration OK: $workspaceFile" -ForegroundColor Green
+    Write-Host "Bundled VSIX checksums OK." -ForegroundColor Green
     exit 0
 }
 
 $resolvedCode = Find-VSCode $CodePath
-Test-OrInstallExtension $resolvedCode $extensionId
-& $resolvedCode --new-window $workspaceFile
+$portableCode = Install-BundledExtensions $resolvedCode $extensionManifest
+if ($CheckExtensions) {
+    Write-Host "Offline VS Code extension installation OK: $($portableCode.Extensions)" -ForegroundColor Green
+    exit 0
+}
+& $resolvedCode --user-data-dir $portableCode.UserData --extensions-dir $portableCode.Extensions --new-window $workspaceFile
 if ($LASTEXITCODE -ne 0) { throw "VS Code failed to start (exit code $LASTEXITCODE)." }

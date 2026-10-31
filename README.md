@@ -36,9 +36,10 @@ irm "https://raw.githubusercontent.com/one-click-run/portable-idris2/main/init.p
 Full 版还会生成相邻的 `OCR-portable-idris2-<版本>-VSCode.cmd`。双击后会用
 便携工具链打开包内 Hello World 工程，并让 Idris 2 扩展通过自包含原生代理启动
 包内 LSP，不需要修改系统环境变量。代理会修正 Windows Chez 输出的 LSP 换行格式，
-其可复现源码位于 `native/Launch-Idris2-LSP.c`。入口会检查 VS Code、示例、便携编译器、
-LSP 代理和 `bamboo.idris2-lsp` 扩展；扩展缺失时会先征得同意才联网安装，拒绝后不会继续启动。
-所有专用设置只写入包内自动生成的 `Portable-Idris2.code-workspace`，不会修改 VS Code
+其可复现源码位于 `native/Launch-Idris2-LSP.c`。Full 包同时内置固定版本的
+`bamboo.idris2-lsp` VSIX；入口会校验后离线安装到包内独立扩展目录，不会访问 Marketplace，
+也不会读写用户的全局扩展目录。专用设置只写入包内自动生成的
+`Portable-Idris2.code-workspace` 和隔离的 VS Code 用户数据目录，不会修改 VS Code
 用户设置或示例目录的 `.vscode/settings.json`。自定义 VS Code 位置可通过
 `ONE_CLICK_RUN_VSCODE` 指向 `code.cmd` 或 `Code.exe`。
 

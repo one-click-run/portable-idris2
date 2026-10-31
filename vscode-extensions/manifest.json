@@ -1,0 +1,14 @@
+{
+  "minimumVSCodeVersion": "1.36.1",
+  "extensions": [
+    {
+      "id": "bamboo.idris2-lsp",
+      "version": "0.7.1",
+      "file": "bamboo.idris2-lsp-0.7.1.vsix",
+      "sha256": "1d7a500e411e3bf91516c6a190614cc435adbf595d8c779bfc27df52138ceef9",
+      "downloadUrl": "https://github.com/one-click-run/portable-idris2/releases/download/vscode-extensions/bamboo.idris2-lsp-0.7.1.vsix",
+      "upstream": "https://github.com/bamboo/idris2-lsp-vscode",
+      "license": "MIT"
+    }
+  ]
+}

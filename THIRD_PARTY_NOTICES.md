@@ -12,8 +12,13 @@ open-source projects:
   environment — their respective upstream licenses
 - MinGW-w64/GCC runtime libraries required by the Windows binaries — their
   respective upstream licenses, including the GCC Runtime Library Exception
+- [Idris 2 Language Server Extension for VS Code](https://github.com/bamboo/idris2-lsp-vscode) — MIT
 
 The build copies the license files shipped by Idris 2 and Chez Scheme into the
 archive under `third-party-licenses`. This project does not claim ownership of
 those projects.
+
+The pinned VSIX is hosted in this organization's `vscode-extensions` Release.
+Its exact version, SHA-256, and upstream project are recorded in
+`SOURCE-MANIFEST.json`.
 

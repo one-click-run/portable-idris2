@@ -47,7 +47,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Relocated self-check failed." }
 
           $env:IDRIS2_PREFIX = Join-Path $moved "idris2"
-          $env:CHEZ = Join-Path $moved "chez\bin\ta6nt\scheme.exe"
+          $env:CHEZ = "scheme"
           $env:PATH = "$(Join-Path $moved 'idris2\bin');$(Join-Path $moved 'chez\bin\ta6nt');$(Join-Path $moved 'runtime');$env:PATH"
           Push-Location $moved
           try {

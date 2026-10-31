@@ -17,10 +17,14 @@ $chezRoot = Join-Path $root "chez"
 $chezBin = Join-Path $chezRoot "bin\ta6nt"
 $runtime = Join-Path $root "runtime"
 $data = Join-Path $root "data"
+$schemeExe = Join-Path $chezBin "scheme.exe"
 
 $env:IDRIS2_PREFIX = $idrisPrefix
-$env:CHEZ = Join-Path $chezBin "scheme.exe"
-$env:SCHEME = $env:CHEZ
+# Idris passes CHEZ to a command shell. A full path containing spaces is split
+# by the upstream Chez backend, so resolve the bundled executable through the
+# process-local PATH instead. This keeps arbitrary installation paths working.
+$env:CHEZ = "scheme"
+$env:SCHEME = "scheme"
 $env:XDG_CACHE_HOME = Join-Path $data "xdg-cache"
 $env:XDG_CONFIG_HOME = Join-Path $data "xdg-config"
 $env:XDG_DATA_HOME = Join-Path $data "xdg-data"
@@ -45,13 +49,13 @@ if ($Check) {
         Write-Host ("{0}: {1}" -f $tool, $resolved.Source)
     }
 
-    if (-not (Test-Path -LiteralPath $env:CHEZ)) {
-        throw "Bundled Chez Scheme is missing: $env:CHEZ"
+    if (-not (Test-Path -LiteralPath $schemeExe)) {
+        throw "Bundled Chez Scheme is missing: $schemeExe"
     }
 
     & idris2 --version
     if ($LASTEXITCODE -ne 0) { throw "idris2 --version failed." }
-    & $env:CHEZ --version
+    & $schemeExe --version
     if ($LASTEXITCODE -ne 0) { throw "scheme --version failed." }
     exit 0
 }

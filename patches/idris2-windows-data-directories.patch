@@ -2,12 +2,15 @@ diff --git a/src/Compiler/RefC/CC.idr b/src/Compiler/RefC/CC.idr
 index ec425e0..eb39351 100644
 --- a/src/Compiler/RefC/CC.idr
 +++ b/src/Compiler/RefC/CC.idr
-@@ -55,6 +55,12 @@ findLDLIBS
+@@ -55,6 +55,15 @@ findLDLIBS
  clibdirs : List String -> List String
  clibdirs ds = map (\d => "-L" ++ d) ds
  
 +quoteRefCArg : String -> String
-+quoteRefCArg arg = "\"" ++ arg ++ "\""
++quoteRefCArg arg =
++  if any (\c => c == ' ' || c == '\t') (unpack arg)
++     then "\"" ++ arg ++ "\""
++     else arg
 +
 +refCCmd : List String -> String
 +refCCmd = unwords . map quoteRefCArg
@@ -15,7 +18,7 @@ index ec425e0..eb39351 100644
  -- cincdirs : List String -> String
  -- cincdirs ds = concat (map (\d => "-I" ++ d ++ " ") ds)
  
-@@ -74,7 +80,7 @@ compileCObjectFile {asLibrary} sourceFile objectFile =
+@@ -74,7 +83,7 @@ compileCObjectFile {asLibrary} sourceFile objectFile =
  
       let libraryFlag = if asLibrary then ["-fpic"] else []
  
@@ -24,7 +27,7 @@ index ec425e0..eb39351 100644
           [cc, "-Werror", "-c"] ++ libraryFlag ++ [sourceFile,
                "-o", objectFile,
                "-I" ++ refcDir,
-@@ -106,7 +112,7 @@ compileCFile {asShared} objectFile outFile =
+@@ -106,7 +115,7 @@ compileCFile {asShared} objectFile outFile =
  
       let sharedFlag = if asShared then ["-shared"] else []
  

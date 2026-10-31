@@ -16,7 +16,7 @@ index e359ded..9fce120 100644
  ||| Creates a parent directory of a (file) path
  export
 diff --git a/src/Pack/Core/Git.idr b/src/Pack/Core/Git.idr
-index f48cda3..81fed72 100644
+index f48cda3..a6c8ee3 100644
 --- a/src/Pack/Core/Git.idr
 +++ b/src/Pack/Core/Git.idr
 @@ -21,7 +21,11 @@ parameters {auto has : HasIO io}
@@ -32,3 +32,14 @@ index f48cda3..81fed72 100644
  
    ||| Creates a shared clone of a cached local git clone
    cloneShared :
+@@ -33,7 +37,9 @@ parameters {auto has : HasIO io}
+   cloneShared url pkg =
+     let cache := gitCacheDir url
+         tmp   := gitTmpDir pkg
+-     in sys ["git", "clone", "--shared", "-q", cache, tmp]
++     in do
++       sys ["env.exe", "rm", "-rf", tmp]
++       sys ["git", "clone", "--shared", "-q", cache, tmp]
+ 
+   ||| Fetch the given commit from upstream
+   fetch : (commit : Commit) -> EitherT PackErr io ()

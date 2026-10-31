@@ -108,6 +108,13 @@ $packUser = Join-Path $payload "data\pack-config"
 $packCache = Join-Path $payload "data\pack-cache"
 $portableBin = Join-Path $payload "bin"
 New-Item -ItemType Directory -Path $packageSources, $packState, $packUser, $packCache, $portableBin -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $repoRoot "Launch-Idris2-LSP.cmd") -Destination $payload
+Copy-Item -LiteralPath (Join-Path $repoRoot "Launch-Idris2-LSP.ps1") -Destination $payload
+Copy-Item -LiteralPath (Join-Path $repoRoot "Open-PortableIdris2-VSCode.ps1") -Destination $payload
+$exampleVscode = Join-Path $payload "examples\hello\.vscode"
+New-Item -ItemType Directory -Path $exampleVscode -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $repoRoot "vscode\idris2\settings.json") -Destination $exampleVscode
+Copy-Item -LiteralPath (Join-Path $repoRoot "vscode\idris2\extensions.json") -Destination $exampleVscode
 
 $collectionUrl = "https://raw.githubusercontent.com/stefan-hoeck/idris2-pack-db/$PackDbCommit/collections/$PackCollection.toml"
 $collectionFile = Join-Path $packState "db\$PackCollection.toml"

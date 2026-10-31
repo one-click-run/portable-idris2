@@ -126,8 +126,8 @@ jobs:
             try {
               & "$env:GITHUB_WORKSPACE\init.ps1" -Archive $asset.FullName -Checksum "$($asset.FullName).sha256" -InstallName $name
               $root = Join-Path $testRoot "OCR-portable-idris2-$name"
-              & powershell -NoProfile -ExecutionPolicy Bypass -File "$root\Enter-PortableIdris2.ps1" -Check
-              if ($LASTEXITCODE -ne 0) { throw "Offline self-check failed for $($asset.Name)." }
+              & "$env:GITHUB_WORKSPACE\scripts\test-installed-toolchain.ps1" -Root $root
+              if ($LASTEXITCODE -ne 0) { throw "Offline acceptance test failed for $($asset.Name)." }
             } finally { Pop-Location }
           }
 
@@ -170,8 +170,8 @@ jobs:
               Invoke-RestMethod $installer | Invoke-Expression
 
               $portableRoot = Join-Path $testRoot "OCR-portable-idris2-$label"
-              & powershell -NoProfile -ExecutionPolicy Bypass -File "$portableRoot\Enter-PortableIdris2.ps1" -Check
-              if ($LASTEXITCODE -ne 0) { throw "Public installation self-check failed for $($assetFile.Name)." }
+              & "$env:GITHUB_WORKSPACE\scripts\test-installed-toolchain.ps1" -Root $portableRoot
+              if ($LASTEXITCODE -ne 0) { throw "Public installation acceptance test failed for $($assetFile.Name)." }
             } finally {
               Pop-Location
             }

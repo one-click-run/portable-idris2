@@ -33,6 +33,9 @@ irm "https://raw.githubusercontent.com/one-click-run/portable-idris2/main/init.p
 
 安装完成后，双击生成的 `OCR-portable-idris2-<版本>.cmd`。
 当 Release 同时存在 Core 和 Full 时，安装器会显示选择窗口或编号菜单。
+Full 版还会生成相邻的 `OCR-portable-idris2-<版本>-VSCode.cmd`。双击后会用
+便携工具链打开包内 Hello World 工程，并让 Idris 2 扩展通过自包含包装器启动
+包内 LSP，不需要修改系统环境变量。未安装 `bamboo.idris2-lsp` 扩展时会显示提示。
 
 完全离线的目标机器可以先从 Release 复制 ZIP 和相邻的 `.sha256` 文件，再运行：
 

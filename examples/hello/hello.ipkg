@@ -1,0 +1,6 @@
+package portable-idris2-hello
+version = 0.1.0
+sourcedir = "."
+modules = Main
+main = Main
+executable = hello

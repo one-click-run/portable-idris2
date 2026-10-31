@@ -121,7 +121,8 @@ if ($InstallName -notmatch '^[A-Za-z0-9._-]+$') {
 $folderName = "OCR-portable-idris2-$InstallName"
 $destination = Join-Path $installBase $folderName
 $launcher = Join-Path $installBase "$folderName.cmd"
-if ((Test-Path -LiteralPath $destination) -or (Test-Path -LiteralPath $launcher)) {
+$vscodeLauncher = Join-Path $installBase "$folderName-VSCode.cmd"
+if ((Test-Path -LiteralPath $destination) -or (Test-Path -LiteralPath $launcher) -or (Test-Path -LiteralPath $vscodeLauncher)) {
     if (-not $Force) {
         throw "$folderName already exists. Choose another name or set ONE_CLICK_RUN_PORTABLE_IDRIS2_FORCE=1 to replace it."
     }
@@ -130,6 +131,9 @@ if ((Test-Path -LiteralPath $destination) -or (Test-Path -LiteralPath $launcher)
     }
     if (Test-Path -LiteralPath $launcher) {
         Remove-Item -LiteralPath $launcher -Force
+    }
+    if (Test-Path -LiteralPath $vscodeLauncher) {
+        Remove-Item -LiteralPath $vscodeLauncher -Force
     }
 }
 
@@ -208,6 +212,16 @@ cd /d "%~dp0"
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0$folderName\Enter-PortableIdris2.ps1"
 "@
     [IO.File]::WriteAllText($launcher, $launcherContent, [Text.UTF8Encoding]::new($false))
+
+    $vscodeEntry = Join-Path $destination "Open-PortableIdris2-VSCode.ps1"
+    if (Test-Path -LiteralPath $vscodeEntry) {
+        $vscodeLauncherContent = @"
+@echo off
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0$folderName\Open-PortableIdris2-VSCode.ps1"
+if errorlevel 1 pause
+"@
+        [IO.File]::WriteAllText($vscodeLauncher, $vscodeLauncherContent, [Text.UTF8Encoding]::new($false))
+    }
     $installationComplete = $true
 } finally {
     if ($installationComplete -and (Test-Path -LiteralPath $work)) {
@@ -222,4 +236,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0$folderName\Enter-Port
 
 Write-Step "Installation complete"
 Write-Host "Double-click $folderName.cmd to enter the portable Idris 2 environment." -ForegroundColor Green
+if (Test-Path -LiteralPath $vscodeLauncher) {
+    Write-Host "Double-click $folderName-VSCode.cmd to open the bundled example in VS Code." -ForegroundColor Green
+}
 

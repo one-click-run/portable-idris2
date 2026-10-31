@@ -5,9 +5,13 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $files = @(
     "init.ps1",
     "Enter-PortableIdris2.ps1",
+    "Launch-Idris2-LSP.ps1",
+    "Open-PortableIdris2-VSCode.ps1",
     "scripts\build-toolchain.ps1",
     "scripts\build-full-toolchain.ps1",
-    "scripts\reproduce-release.ps1"
+    "scripts\reproduce-release.ps1",
+    "scripts\test-lsp-protocol.ps1",
+    "scripts\test-installed-toolchain.ps1"
 )
 
 foreach ($file in $files) {
@@ -33,6 +37,9 @@ foreach ($required in @("Expand-ToolchainArchive", "tar.exe", "Checking the extr
         throw "init.ps1 is missing resilient extraction behavior: $required"
     }
 }
+foreach ($required in @('$vscodeLauncher', 'Open-PortableIdris2-VSCode.ps1')) {
+    if (-not $init.Contains($required)) { throw "init.ps1 is missing the VS Code entry point: $required" }
+}
 if ($init -match '(?m)^\s*Expand-Archive\b') {
     throw "init.ps1 must not use the unreliable Windows PowerShell Expand-Archive path."
 }
@@ -52,6 +59,16 @@ foreach ($forbidden in @("Invoke-WebRequest", "Invoke-RestMethod", "curl.exe", "
 foreach ($requiredFile in @("OFFLINE-GUARANTEE.md", "BUILDING.md", "REPRODUCING.md")) {
     if (-not (Test-Path -LiteralPath (Join-Path $repoRoot $requiredFile))) {
         throw "Missing release documentation: $requiredFile"
+    }
+}
+foreach ($requiredFile in @(
+    "Launch-Idris2-LSP.cmd",
+    "examples\hello\hello.ipkg",
+    "vscode\idris2\settings.json",
+    "vscode\idris2\extensions.json"
+)) {
+    if (-not (Test-Path -LiteralPath (Join-Path $repoRoot $requiredFile))) {
+        throw "Missing VS Code integration file: $requiredFile"
     }
 }
 

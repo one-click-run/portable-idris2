@@ -1,0 +1,17 @@
+diff --git a/src/Core/Directory.idr b/src/Core/Directory.idr
+index 938006d..628509b 100644
+--- a/src/Core/Directory.idr
++++ b/src/Core/Directory.idr
+@@ -147,7 +147,11 @@ firstAvailable [] = pure Nothing
+ firstAvailable (f :: fs)
+     = do log "import.file" 30 $ "Attempting to read " ++ f
+          Right ok <- coreLift $ openFile f Read
+-               | Left err => firstAvailable fs
++               | Left err => do
++                   Right dir <- coreLift $ openDir f
++                     | Left _ => firstAvailable fs
++                   coreLift $ closeDir dir
++                   pure (Just f)
+          coreLift $ closeFile ok
+          pure (Just f)
+ 

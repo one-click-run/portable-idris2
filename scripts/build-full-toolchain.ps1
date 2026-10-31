@@ -253,7 +253,8 @@ $fullComponents = @($manifest.components) + @(
 )
 $manifest.components = $fullComponents
 $patchPath = Join-Path $repoRoot "patches\pack-windows-mkdir.patch"
-$manifest | Add-Member -NotePropertyName patches -NotePropertyValue @([ordered]@{
+$existingPatches = @($manifest.patches)
+$manifest | Add-Member -NotePropertyName patches -NotePropertyValue @($existingPatches + [ordered]@{
     path = "patches/pack-windows-mkdir.patch"
     sha256 = (Get-FileHash -LiteralPath $patchPath -Algorithm SHA256).Hash.ToLowerInvariant()
 }) -Force

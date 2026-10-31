@@ -69,7 +69,8 @@ Full 版另外包含：
 
 Pack 上游尚未正式维护原生 Windows 支持。本项目对固定 Pack 提交应用了一个
 仓库内可审计的最小补丁，避免 `cmd.exe` 将 `mkdir -p` 误解析为不兼容的
-内置命令；补丁位于 `patches/pack-windows-mkdir.patch`。
+内置命令。Idris 2 补丁则让 Windows 能将 RefC 的数据目录识别为可用路径。
+两份补丁均位于 `patches/`，其 SHA-256 会写入每个发布包的来源清单。
 
 Full 中的 LSP 只从 collection 锁定的 `LSP-lib` 和 `idris2-lsp` 两个提交构建，构建过程不会让 Pack 遍历或缓存整个远端包集合。`pack install` 安装发布包以外的第三方包属于用户明确发起的联网操作，不在离线承诺范围内。完整边界见 [OFFLINE-GUARANTEE.md](OFFLINE-GUARANTEE.md)。
 

@@ -89,6 +89,10 @@ New-Item -ItemType Directory -Path $buildRoot, $installedIdris, $payload, $licen
 Write-Host "Cloning Idris 2 $IdrisVersion"
 & git -c core.autocrlf=false clone --depth 1 --branch $IdrisVersion https://github.com/idris-lang/Idris2.git $idrisSource
 if ($LASTEXITCODE -ne 0) { throw "Could not clone Idris 2 $IdrisVersion." }
+$idrisPatchPath = Join-Path $repoRoot "patches\idris2-windows-data-directories.patch"
+Invoke-Native {
+    git -C $idrisSource apply --ignore-space-change --whitespace=nowarn $idrisPatchPath
+} "Applying the audited Idris 2 Windows data-directory patch"
 
 Write-Host "Cloning Chez Scheme $ChezVersion"
 & git -c core.autocrlf=false clone --depth 1 --branch $ChezVersion https://github.com/cisco/ChezScheme.git $chezSource
@@ -98,6 +102,8 @@ $chezUnix = Convert-ToUnixPath $chezSource
 $idrisUnix = Convert-ToUnixPath $idrisSource
 $prefixUnix = Convert-ToUnixPath $installedIdris
 
+$env:MSYSTEM = "MINGW64"
+$env:MSYS2_PATH_TYPE = "inherit"
 Invoke-Bash "cd '$chezUnix' && ./configure --threads && make -j2" "Chez Scheme build"
 $chezBuild = Join-Path $chezSource "ta6nt"
 $scheme = Join-Path $chezBuild "bin\ta6nt\scheme.exe"
@@ -105,8 +111,6 @@ if (-not (Test-Path -LiteralPath $scheme)) {
     throw "Chez Scheme build did not produce $scheme"
 }
 
-$env:MSYSTEM = "MINGW64"
-$env:MSYS2_PATH_TYPE = "inherit"
 $env:SCHEME = "scheme"
 $env:CC = "gcc"
 $env:PATH = "$(Split-Path -Parent $scheme);C:\msys64\mingw64\bin;$env:PATH"
@@ -120,6 +124,9 @@ Copy-Item -LiteralPath (Join-Path $repoRoot "LICENSE") -Destination $payload
 Copy-Item -LiteralPath (Join-Path $repoRoot "THIRD_PARTY_NOTICES.md") -Destination $payload
 Copy-Item -LiteralPath (Join-Path $repoRoot "OFFLINE-GUARANTEE.md") -Destination $payload
 Copy-Item -LiteralPath (Join-Path $repoRoot "examples") -Destination $payload -Recurse
+$payloadPatchDir = Join-Path $payload "patches"
+New-Item -ItemType Directory -Path $payloadPatchDir -Force | Out-Null
+Copy-Item -LiteralPath $idrisPatchPath -Destination (Join-Path $payloadPatchDir "idris2-windows-data-directories.patch") -Force
 Copy-UpstreamLicense $idrisSource $licenses "Idris2"
 Copy-UpstreamLicense $chezSource $licenses "ChezScheme"
 
@@ -142,6 +149,10 @@ $manifest = [ordered]@{
         [ordered]@{ name = "Idris2"; version = $IdrisVersion; commit = $idrisCommit; source = "https://github.com/idris-lang/Idris2.git"; license = "BSD-3-Clause" },
         [ordered]@{ name = "ChezScheme"; version = $ChezVersion; commit = $chezCommit; source = "https://github.com/cisco/ChezScheme.git"; license = "Apache-2.0" }
     )
+    patches = @([ordered]@{
+        path = "patches/idris2-windows-data-directories.patch"
+        sha256 = (Get-FileHash -LiteralPath $idrisPatchPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    })
 }
 [IO.File]::WriteAllText((Join-Path $payload "SOURCE-MANIFEST.json"), ($manifest | ConvertTo-Json -Depth 8) + "`n", [Text.UTF8Encoding]::new($false))
 $spdxPackages = @($manifest.components | ForEach-Object {

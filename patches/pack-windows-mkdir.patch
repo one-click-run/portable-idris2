@@ -7,7 +7,7 @@ index e359ded..0ed5f6d 100644
  
  ||| Checks if a file at the given location exists.
 +pathExists : HasIO io => String -> io Bool
-+pathExists path = System.Directory.exists (replace "/" "\\" path)
++pathExists path = System.File.Meta.exists (replace "/" "\\" path)
 +
  export %inline
  exists : HasIO io => (dir : Path Abs) -> io Bool

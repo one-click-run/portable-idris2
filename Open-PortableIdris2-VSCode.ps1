@@ -28,6 +28,7 @@ if (-not (Test-Path -LiteralPath $lspLauncher -PathType Leaf)) { throw "Idris 2 
 $settingsPath = Join-Path $workspace ".vscode\settings.json"
 $settings = [ordered]@{
     "idris2-lsp.path" = $lspLauncher
+    "idris2-lsp.logFile" = (Join-Path $data "idris2-lsp.log")
     "idris2-lsp.trace.server" = "messages"
 }
 [IO.File]::WriteAllText($settingsPath, (($settings | ConvertTo-Json) + [Environment]::NewLine), [Text.UTF8Encoding]::new($false))

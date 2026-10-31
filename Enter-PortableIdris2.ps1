@@ -55,6 +55,7 @@ $env:XDG_CACHE_HOME = Join-Path $data "xdg-cache"
 $env:XDG_CONFIG_HOME = Join-Path $data "xdg-config"
 $env:XDG_DATA_HOME = Join-Path $data "xdg-data"
 $env:XDG_STATE_HOME = Join-Path $data "xdg-state"
+$env:ONE_CLICK_RUN_OFFLINE_RUNTIME = "1"
 
 @($data, $env:XDG_CACHE_HOME, $env:XDG_CONFIG_HOME, $env:XDG_DATA_HOME, $env:XDG_STATE_HOME) |
     ForEach-Object { New-Item -ItemType Directory -Path $_ -Force | Out-Null }
@@ -71,12 +72,6 @@ Add-Path $chezBin
 Add-Path (Join-Path $idrisPrefix "bin")
 if ($isFull) {
     Add-Path $portableBin
-    $packagePath = (& pack package-path 2>$null | Out-String).Trim()
-    if ($LASTEXITCODE -eq 0 -and $packagePath) { $env:IDRIS2_PACKAGE_PATH = $packagePath }
-    $libsPath = (& pack libs-path 2>$null | Out-String).Trim()
-    if ($LASTEXITCODE -eq 0 -and $libsPath) { $env:IDRIS2_LIBS = $libsPath }
-    $dataPath = (& pack data-path 2>$null | Out-String).Trim()
-    if ($LASTEXITCODE -eq 0 -and $dataPath) { $env:IDRIS2_DATA = $dataPath }
 }
 
 if ($Check) {
@@ -118,5 +113,6 @@ Write-Host (& idris2 --version)
 Write-Host ("Edition: " + $(if ($isFull) { "Full (Pack, LSP, RefC/MinGW)" } else { "Core" }))
 Write-Host "Default backend: Chez Scheme"
 Write-Host "This folder can be moved; the current session does not modify the system PATH." -ForegroundColor DarkGray
+Write-Host "Bundled tools work offline. Pack may use the network only when you explicitly request external packages." -ForegroundColor DarkGray
 & $env:ComSpec /K "prompt (portable-idris2) `$P`$G"
 

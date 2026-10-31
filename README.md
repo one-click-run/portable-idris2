@@ -8,6 +8,8 @@
 
 目前仅支持 Windows x86-64。
 
+发布包承诺的组件在下载完成后均可离线使用。启动器不会调用 Pack、检查更新或自动下载内容。
+
 ## 使用
 
 在希望创建环境的目录中打开 PowerShell，执行：
@@ -18,6 +20,12 @@ irm "https://raw.githubusercontent.com/one-click-run/portable-idris2/main/init.p
 
 安装完成后，双击生成的 `OCR-portable-idris2-<版本>.cmd`。
 当 Release 同时存在 Core 和 Full 时，安装器会显示选择窗口或编号菜单。
+
+完全离线的目标机器可以先从 Release 复制 ZIP 和相邻的 `.sha256` 文件，再运行：
+
+```powershell
+.\init.ps1 -Archive .\portable-idris2-0.8.0-windows-x86_64.zip
+```
 
 也可以无交互指定 Release 资产和安装名称：
 
@@ -42,6 +50,7 @@ irm "https://raw.githubusercontent.com/one-click-run/portable-idris2/main/init.p
 - `IDRIS2_PREFIX`、Chez 路径和用户数据都由启动器动态设置。
 - 工具链不包含写死的安装目录；整个文件夹可以复制、改名和删除。
 - GitHub Actions 依照 Idris 2 官方 Windows CI，从固定版本源码完成自举。
+- 每个发布包内含精确提交来源清单 `SOURCE-MANIFEST.json`、SPDX SBOM 和离线能力说明。
 
 ## 环境内容
 
@@ -61,6 +70,8 @@ Full 版另外包含：
 Pack 上游尚未正式维护原生 Windows 支持。本项目对固定 Pack 提交应用了一个
 仓库内可审计的最小补丁，避免 `cmd.exe` 将 `mkdir -p` 误解析为不兼容的
 内置命令；补丁位于 `patches/pack-windows-mkdir.patch`。
+
+Full 中的 LSP 只从 collection 锁定的 `LSP-lib` 和 `idris2-lsp` 两个提交构建，构建过程不会让 Pack 遍历或缓存整个远端包集合。`pack install` 安装发布包以外的第三方包属于用户明确发起的联网操作，不在离线承诺范围内。完整边界见 [OFFLINE-GUARANTEE.md](OFFLINE-GUARANTEE.md)。
 
 进入环境后可以运行：
 
@@ -86,14 +97,16 @@ build\exec\hello-refc.exe
 3. 输入 Idris 2 与 Chez Scheme 版本，或保留默认值。
 4. 运行工作流。
 
-工作流将构建 Chez Scheme、从官方 bootstrap 源码自举 Idris 2、构建 Pack
+工作流将构建 Chez Scheme、从官方 bootstrap 源码自举 Idris 2、从锁定提交构建 Pack
 及 LSP、收集 MSYS2/MinGW 工具链、执行 Chez 与 RefC 迁移测试、生成两种 ZIP
-和 SHA-256，并上传到固定的 `toolchain` Release。发布后还会重新运行公开的
+和 SHA-256，生成来源清单与 SBOM，执行本地归档离线安装测试，并上传到固定的 `toolchain` Release。发布后还会重新运行公开的
 一行安装器验证 Core 与 Full。
+
+详细构建和审计方法见 [BUILDING.md](BUILDING.md)。本项目承诺“可审计、可重建”，暂不宣称不同机器构建出的 ZIP 能逐字节一致。
 
 ## 安全与来源
 
-安装器只从 `one-click-run/portable-idris2` Release 下载工具链，并要求相邻
+在线模式下，安装器只从 `one-click-run/portable-idris2` Release 下载工具链；离线模式接受本地 ZIP。两种模式都要求相邻
 的 SHA-256 文件存在且匹配。上游来源及许可证见
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 

@@ -19,6 +19,10 @@ on:
         description: Pack commit compatible with the collection
         required: true
         default: cb842e66c7e9834fae9cdf05ba33ca64fbec949f
+      pack_db_commit:
+        description: Exact Pack database commit
+        required: true
+        default: 69ddc094a218941bba5516828c2ee1dfdcc640f5
 
 permissions:
   contents: write
@@ -31,7 +35,7 @@ jobs:
       MSYSTEM: MINGW64
       MSYS2_PATH_TYPE: inherit
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install MSYS2 build dependencies
         shell: powershell
@@ -61,11 +65,14 @@ jobs:
             -ChezVersion '${{ inputs.chez }}' `
             -PackCollection '${{ inputs.pack_collection }}' `
             -PackCommit '${{ inputs.pack_commit }}' `
+            -PackDbCommit '${{ inputs.pack_db_commit }}' `
             -OutputDirectory "$env:RUNNER_TEMP\dist"
 
       - name: Relocation and compilation smoke test
         shell: powershell
         run: |
+          $env:HTTP_PROXY = "http://127.0.0.1:9"
+          $env:HTTPS_PROXY = "http://127.0.0.1:9"
           $moved = Join-Path $env:RUNNER_TEMP "moved portable idris2"
           Copy-Item -LiteralPath .\.build\payload -Destination $moved -Recurse
           & powershell -NoProfile -ExecutionPolicy Bypass -File "$moved\Enter-PortableIdris2.ps1" -Check
@@ -106,8 +113,26 @@ jobs:
             Pop-Location
           }
 
+      - name: Air-gapped local archive installation test
+        shell: powershell
+        run: |
+          $env:HTTP_PROXY = "http://127.0.0.1:9"
+          $env:HTTPS_PROXY = "http://127.0.0.1:9"
+          foreach ($asset in (Get-ChildItem "$env:RUNNER_TEMP\dist\portable-idris2-*.zip")) {
+            $name = if ($asset.Name -like '*-full-*') { 'offline-full' } else { 'offline-core' }
+            $testRoot = Join-Path $env:RUNNER_TEMP $name
+            New-Item -ItemType Directory -Path $testRoot -Force | Out-Null
+            Push-Location $testRoot
+            try {
+              & "$env:GITHUB_WORKSPACE\init.ps1" -Archive $asset.FullName -Checksum "$($asset.FullName).sha256" -InstallName $name
+              $root = Join-Path $testRoot "OCR-portable-idris2-$name"
+              & powershell -NoProfile -ExecutionPolicy Bypass -File "$root\Enter-PortableIdris2.ps1" -Check
+              if ($LASTEXITCODE -ne 0) { throw "Offline self-check failed for $($asset.Name)." }
+            } finally { Pop-Location }
+          }
+
       - name: Publish organization-hosted assets
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: toolchain
           name: Portable Idris 2 toolchain
@@ -123,6 +148,7 @@ jobs:
           files: |
             ${{ runner.temp }}/dist/*.zip
             ${{ runner.temp }}/dist/*.sha256
+            ${{ runner.temp }}/dist/*.json
 
       - name: End-to-end test the public one-line installer
         shell: powershell

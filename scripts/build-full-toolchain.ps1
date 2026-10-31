@@ -165,9 +165,8 @@ $licenseDir = Join-Path $payload "third-party-licenses"
 Copy-Item -LiteralPath (Join-Path $packSource "LICENSE") -Destination (Join-Path $licenseDir "Pack-LICENSE") -Force
 foreach ($licensePackage in @("idris2-lsp", "lsp-lib")) {
     $package = Get-CollectionPackage $licensePackage
-    $repoPath = $package.Url -replace '^https://github\.com/', '' -replace '\.git$', ''
-    $licenseUrl = "https://raw.githubusercontent.com/$repoPath/$($package.Commit)/LICENSE"
-    Invoke-WebRequest -Uri $licenseUrl -UseBasicParsing -OutFile (Join-Path $licenseDir "$licensePackage-LICENSE")
+    $licenseSource = Get-Source "$licensePackage-license" $package.Url $package.Commit
+    Copy-Item -LiteralPath (Join-Path $licenseSource "LICENSE") -Destination (Join-Path $licenseDir "$licensePackage-LICENSE") -Force
 }
 $packCmd = Join-Path $portableBin "pack.cmd"
 if (-not (Test-Path -LiteralPath $packCmd)) { throw "Pack build did not produce pack.cmd." }
@@ -205,17 +204,24 @@ $env:PACK_CACHE_DIR = $packCache
 $env:PACK_BIN_DIR = $portableBin
 New-Item -ItemType Directory -Path $env:HOME -Force | Out-Null
 
-Invoke-Native { & $packCmd install-app idris2-lsp } "Installing idris2-lsp with Pack"
-$lspOutput = @(& $packCmd app-path idris2-lsp) | Where-Object { $_ -and $_.Trim() }
-if ($LASTEXITCODE -ne 0 -or $lspOutput.Count -eq 0) { throw "Pack did not report the idris2-lsp application path." }
-$lspExecutable = $lspOutput[-1].Trim()
-if (-not (Test-Path -LiteralPath $lspExecutable)) { throw "Pack reported a missing LSP executable: $lspExecutable" }
-$lspDir = Split-Path -Parent $lspExecutable
-foreach ($name in @("idris2-lsp", "idris2-lsp.cmd", "idris2-lsp_app")) {
-    $existing = Join-Path $portableBin $name
-    if (Test-Path -LiteralPath $existing) { Remove-Item -LiteralPath $existing -Recurse -Force }
+# Build only the two commits required for the language server. Invoking Pack's
+# install command here would populate/cache the entire collection and make the
+# release build depend on unrelated package hosts.
+Install-CollectionPackage "lsp-lib"
+$lspPackage = Get-CollectionPackage "idris2-lsp"
+$lspSource = Get-Source "idris2-lsp" $lspPackage.Url $lspPackage.Commit
+$lspIpkg = Join-Path $lspSource ($lspPackage.Ipkg -replace '/', '\')
+Push-Location (Split-Path -Parent $lspIpkg)
+try {
+    Invoke-Native { & $idrisCmd --build (Split-Path -Leaf $lspIpkg) } "Building idris2-lsp"
+} finally {
+    Pop-Location
 }
-Copy-Item -Path (Join-Path $lspDir "*") -Destination $portableBin -Recurse -Force
+$lspBuild = Join-Path $lspSource "build\exec"
+if (-not (Test-Path -LiteralPath (Join-Path $lspBuild "idris2-lsp.cmd"))) {
+    throw "The pinned idris2-lsp build did not produce idris2-lsp.cmd."
+}
+Copy-Item -Path (Join-Path $lspBuild "*") -Destination $portableBin -Recurse -Force
 
 # Retain the complete, relocatable MSYS2 development environment for Git,
 # package hooks, and the RefC backend. Remove only caches and transient homes.
@@ -226,6 +232,56 @@ Clear-DirectoryContents (Join-Path $bundledMsys "tmp")
 Clear-DirectoryContents (Join-Path $bundledMsys "home")
 Clear-DirectoryContents $packCache
 Clear-DirectoryContents $packageSources
+
+$msysPackageList = & $bash -l -c "pacman -Q"
+if ($LASTEXITCODE -ne 0) { throw "Could not inventory the bundled MSYS2 packages." }
+[IO.File]::WriteAllLines((Join-Path $payload "MSYS2-PACKAGES.txt"), [string[]]$msysPackageList, [Text.UTF8Encoding]::new($false))
+
+$manifestPath = Join-Path $payload "SOURCE-MANIFEST.json"
+$manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+$manifest.edition = "full"
+$manifest | Add-Member -NotePropertyName packCollection -NotePropertyValue ([ordered]@{
+    name = $PackCollection
+    databaseCommit = $PackDbCommit
+    source = "https://github.com/stefan-hoeck/idris2-pack-db"
+}) -Force
+$fullComponents = @($manifest.components) + @(
+    [pscustomobject]@{ name = "Pack"; version = $PackCommit.Substring(0, 12); commit = $PackCommit; source = "https://github.com/stefan-hoeck/idris2-pack.git"; license = "BSD-3-Clause" },
+    [pscustomobject]@{ name = "LSP-lib"; version = $((Get-CollectionPackage 'lsp-lib').Commit.Substring(0, 12)); commit = (Get-CollectionPackage 'lsp-lib').Commit; source = (Get-CollectionPackage 'lsp-lib').Url; license = "BSD-3-Clause" },
+    [pscustomobject]@{ name = "idris2-lsp"; version = $lspPackage.Commit.Substring(0, 12); commit = $lspPackage.Commit; source = $lspPackage.Url; license = "BSD-3-Clause" },
+    [pscustomobject]@{ name = "MSYS2 toolchain"; version = "package-list-in-archive"; commit = "NOASSERTION"; source = "https://packages.msys2.org/"; license = "various" }
+)
+$manifest.components = $fullComponents
+$patchPath = Join-Path $repoRoot "patches\pack-windows-mkdir.patch"
+$manifest | Add-Member -NotePropertyName patches -NotePropertyValue @([ordered]@{
+    path = "patches/pack-windows-mkdir.patch"
+    sha256 = (Get-FileHash -LiteralPath $patchPath -Algorithm SHA256).Hash.ToLowerInvariant()
+}) -Force
+[IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json -Depth 10) + "`n", [Text.UTF8Encoding]::new($false))
+$payloadPatchDir = Join-Path $payload "patches"
+New-Item -ItemType Directory -Path $payloadPatchDir -Force | Out-Null
+Copy-Item -LiteralPath $patchPath -Destination (Join-Path $payloadPatchDir "pack-windows-mkdir.patch") -Force
+
+$spdxPackages = @($fullComponents | ForEach-Object {
+    [ordered]@{
+        SPDXID = "SPDXRef-Package-" + ($_.name -replace '[^A-Za-z0-9.-]', '-')
+        name = $_.name
+        versionInfo = $_.version
+        downloadLocation = $_.source
+        filesAnalyzed = $false
+        licenseConcluded = $(if ($_.license -eq 'various') { 'NOASSERTION' } else { $_.license })
+        licenseDeclared = $(if ($_.license -eq 'various') { 'NOASSERTION' } else { $_.license })
+        copyrightText = "NOASSERTION"
+    }
+})
+$sbom = [ordered]@{
+    spdxVersion = "SPDX-2.3"; dataLicense = "CC0-1.0"; SPDXID = "SPDXRef-DOCUMENT"
+    name = "portable-idris2-full-$($IdrisVersion.TrimStart('v'))-windows-x86_64"
+    documentNamespace = "https://github.com/one-click-run/portable-idris2/releases/tag/toolchain/spdx/full-$sourceCommit"
+    creationInfo = [ordered]@{ created = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"); creators = @("Tool: one-click-run portable-idris2 build-full-toolchain.ps1") }
+    packages = $spdxPackages
+}
+[IO.File]::WriteAllText((Join-Path $payload "SBOM.spdx.json"), ($sbom | ConvertTo-Json -Depth 8) + "`n", [Text.UTF8Encoding]::new($false))
 
 & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $payload "Enter-PortableIdris2.ps1") -Check
 if ($LASTEXITCODE -ne 0) { throw "The unpacked Full environment failed its self-check." }
@@ -249,6 +305,8 @@ try {
 
 $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
 [IO.File]::WriteAllText("$archive.sha256", "$hash  $assetName`n", [Text.UTF8Encoding]::new($false))
+Copy-Item -LiteralPath (Join-Path $payload "SOURCE-MANIFEST.json") -Destination (Join-Path $OutputDirectory "$assetName.source-manifest.json") -Force
+Copy-Item -LiteralPath (Join-Path $payload "SBOM.spdx.json") -Destination (Join-Path $OutputDirectory "$assetName.spdx.json") -Force
 Write-Host "Created $archive"
 Write-Host "Created $archive.sha256"
 

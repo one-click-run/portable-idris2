@@ -3,6 +3,8 @@ param(
     [string]$InstallName = $env:ONE_CLICK_RUN_PORTABLE_IDRIS2_INSTALL_NAME,
     [string]$Repository = $(if ($env:ONE_CLICK_RUN_PORTABLE_IDRIS2_REPOSITORY) { $env:ONE_CLICK_RUN_PORTABLE_IDRIS2_REPOSITORY } else { "one-click-run/portable-idris2" }),
     [string]$ReleaseTag = $(if ($env:ONE_CLICK_RUN_PORTABLE_IDRIS2_RELEASE_TAG) { $env:ONE_CLICK_RUN_PORTABLE_IDRIS2_RELEASE_TAG } else { "toolchain" }),
+    [string]$Archive = $env:ONE_CLICK_RUN_PORTABLE_IDRIS2_ARCHIVE,
+    [string]$Checksum = $env:ONE_CLICK_RUN_PORTABLE_IDRIS2_CHECKSUM,
     [switch]$Force = ($env:ONE_CLICK_RUN_PORTABLE_IDRIS2_FORCE -eq "1")
 )
 
@@ -65,19 +67,30 @@ if ($env:PROCESSOR_ARCHITECTURE -ne "AMD64" -and $env:PROCESSOR_ARCHITEW6432 -ne
 
 $installBase = (Get-Location).Path
 $headers = @{ Accept = "application/vnd.github+json"; "User-Agent" = "one-click-run-portable-idris2" }
-$apiUrl = "https://api.github.com/repos/$Repository/releases/tags/$ReleaseTag"
-
-Write-Step "Reading the $ReleaseTag release from $Repository"
-$release = Invoke-RestMethod -Uri $apiUrl -Headers $headers
-$zipAssets = @($release.assets | Where-Object { $_.name -match '^portable-idris2-.*-windows-x86_64\.zip$' })
-if ($zipAssets.Count -eq 0) {
-    throw "The release has no Windows x86-64 toolchain. A maintainer must run the Publish toolchain workflow first."
-}
-
-$asset = Select-Asset $zipAssets
-if (-not $asset) {
-    Write-Host "No toolchain selected. Installation cancelled."
-    return
+$localArchive = $null
+$localChecksum = $null
+if ($Archive) {
+    $localArchive = (Resolve-Path -LiteralPath $Archive).Path
+    if ((Split-Path -Leaf $localArchive) -notmatch '^portable-idris2-.*-windows-x86_64\.zip$') {
+        throw "The local archive name is not a portable Idris 2 Windows x86-64 release asset."
+    }
+    if (-not $Checksum) { $Checksum = "$localArchive.sha256" }
+    $localChecksum = (Resolve-Path -LiteralPath $Checksum).Path
+    $asset = [pscustomobject]@{ name = (Split-Path -Leaf $localArchive) }
+    Write-Step "Using the local release archive $($asset.name)"
+} else {
+    $apiUrl = "https://api.github.com/repos/$Repository/releases/tags/$ReleaseTag"
+    Write-Step "Reading the $ReleaseTag release from $Repository"
+    $release = Invoke-RestMethod -Uri $apiUrl -Headers $headers
+    $zipAssets = @($release.assets | Where-Object { $_.name -match '^portable-idris2-.*-windows-x86_64\.zip$' })
+    if ($zipAssets.Count -eq 0) {
+        throw "The release has no Windows x86-64 toolchain. A maintainer must run the Publish toolchain workflow first."
+    }
+    $asset = Select-Asset $zipAssets
+    if (-not $asset) {
+        Write-Host "No toolchain selected. Installation cancelled."
+        return
+    }
 }
 
 $versionLabel = $asset.name -replace '^portable-idris2-', '' -replace '-windows-x86_64\.zip$', ''
@@ -104,9 +117,11 @@ if ((Test-Path -LiteralPath $destination) -or (Test-Path -LiteralPath $launcher)
 }
 
 $checksumName = "$($asset.name).sha256"
-$checksumAsset = @($release.assets | Where-Object { $_.name -eq $checksumName })
-if ($checksumAsset.Count -ne 1) {
-    throw "Missing checksum file $checksumName. Refusing to install an unverified toolchain."
+if (-not $localArchive) {
+    $checksumAsset = @($release.assets | Where-Object { $_.name -eq $checksumName })
+    if ($checksumAsset.Count -ne 1) {
+        throw "Missing checksum file $checksumName. Refusing to install an unverified toolchain."
+    }
 }
 
 $work = Join-Path $installBase ".$folderName.installing"
@@ -119,9 +134,15 @@ try {
     }
     New-Item -ItemType Directory -Path $work, $staging | Out-Null
 
-    Write-Step "Downloading $($asset.name)"
-    Receive-File -Uri $asset.browser_download_url -Destination $archive
-    Receive-File -Uri $checksumAsset[0].browser_download_url -Destination $checksumFile
+    if ($localArchive) {
+        Write-Step "Copying the verified local release files"
+        Copy-Item -LiteralPath $localArchive -Destination $archive
+        Copy-Item -LiteralPath $localChecksum -Destination $checksumFile
+    } else {
+        Write-Step "Downloading $($asset.name)"
+        Receive-File -Uri $asset.browser_download_url -Destination $archive
+        Receive-File -Uri $checksumAsset[0].browser_download_url -Destination $checksumFile
+    }
     $checksumText = [IO.File]::ReadAllText($checksumFile)
     $expected = ([regex]::Match($checksumText, '(?i)\b[0-9a-f]{64}\b')).Value.ToLowerInvariant()
     if (-not $expected) {

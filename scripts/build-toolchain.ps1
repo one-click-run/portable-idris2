@@ -118,6 +118,7 @@ Copy-Item -LiteralPath $chezBuild -Destination (Join-Path $payload "chez") -Recu
 Copy-Item -LiteralPath (Join-Path $repoRoot "Enter-PortableIdris2.ps1") -Destination $payload
 Copy-Item -LiteralPath (Join-Path $repoRoot "LICENSE") -Destination $payload
 Copy-Item -LiteralPath (Join-Path $repoRoot "THIRD_PARTY_NOTICES.md") -Destination $payload
+Copy-Item -LiteralPath (Join-Path $repoRoot "OFFLINE-GUARANTEE.md") -Destination $payload
 Copy-Item -LiteralPath (Join-Path $repoRoot "examples") -Destination $payload -Recurse
 Copy-UpstreamLicense $idrisSource $licenses "Idris2"
 Copy-UpstreamLicense $chezSource $licenses "ChezScheme"
@@ -127,6 +128,43 @@ $runtimeRoots += Get-ChildItem -LiteralPath (Join-Path $payload "idris2") -Recur
     Where-Object { $_.Extension -in @('.exe', '.dll') } |
     Select-Object -ExpandProperty FullName
 Copy-MingwDependencies $runtimeRoots (Join-Path $payload "runtime")
+
+$idrisCommit = (git -C $idrisSource rev-parse HEAD).Trim()
+$chezCommit = (git -C $chezSource rev-parse HEAD).Trim()
+$manifest = [ordered]@{
+    schema = "https://one-click-run.github.io/source-manifest/v1"
+    project = "one-click-run/portable-idris2"
+    platform = "windows-x86_64"
+    edition = "core"
+    offlineRuntime = $true
+    repositoryCommit = $(if ($env:GITHUB_SHA) { $env:GITHUB_SHA } else { (git -C $repoRoot rev-parse HEAD).Trim() })
+    components = @(
+        [ordered]@{ name = "Idris2"; version = $IdrisVersion; commit = $idrisCommit; source = "https://github.com/idris-lang/Idris2.git"; license = "BSD-3-Clause" },
+        [ordered]@{ name = "ChezScheme"; version = $ChezVersion; commit = $chezCommit; source = "https://github.com/cisco/ChezScheme.git"; license = "Apache-2.0" }
+    )
+}
+[IO.File]::WriteAllText((Join-Path $payload "SOURCE-MANIFEST.json"), ($manifest | ConvertTo-Json -Depth 8) + "`n", [Text.UTF8Encoding]::new($false))
+$spdxPackages = @($manifest.components | ForEach-Object {
+    [ordered]@{
+        SPDXID = "SPDXRef-Package-" + ($_.name -replace '[^A-Za-z0-9.-]', '-')
+        name = $_.name
+        versionInfo = $_.version
+        downloadLocation = $_.source
+        filesAnalyzed = $false
+        licenseConcluded = $_.license
+        licenseDeclared = $_.license
+        copyrightText = "NOASSERTION"
+        externalRefs = @([ordered]@{ referenceCategory = "OTHER"; referenceType = "commit"; referenceLocator = $_.commit })
+    }
+})
+$sbom = [ordered]@{
+    spdxVersion = "SPDX-2.3"; dataLicense = "CC0-1.0"; SPDXID = "SPDXRef-DOCUMENT"
+    name = "portable-idris2-core-$($IdrisVersion.TrimStart('v'))-windows-x86_64"
+    documentNamespace = "https://github.com/one-click-run/portable-idris2/releases/tag/toolchain/spdx/core-$idrisCommit"
+    creationInfo = [ordered]@{ created = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"); creators = @("Tool: one-click-run portable-idris2 build-toolchain.ps1") }
+    packages = $spdxPackages
+}
+[IO.File]::WriteAllText((Join-Path $payload "SBOM.spdx.json"), ($sbom | ConvertTo-Json -Depth 8) + "`n", [Text.UTF8Encoding]::new($false))
 
 & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $payload "Enter-PortableIdris2.ps1") -Check
 if ($LASTEXITCODE -ne 0) {
@@ -156,6 +194,8 @@ try {
 $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
 $checksumPath = "$archive.sha256"
 [IO.File]::WriteAllText($checksumPath, "$hash  $assetName`n", [Text.UTF8Encoding]::new($false))
+Copy-Item -LiteralPath (Join-Path $payload "SOURCE-MANIFEST.json") -Destination (Join-Path $OutputDirectory "$assetName.source-manifest.json") -Force
+Copy-Item -LiteralPath (Join-Path $payload "SBOM.spdx.json") -Destination (Join-Path $OutputDirectory "$assetName.spdx.json") -Force
 Write-Host "Created $archive"
 Write-Host "Created $checksumPath"
 

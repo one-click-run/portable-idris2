@@ -53,9 +53,9 @@ jobs:
           try {
             & idris2 .\examples\hello\Main.idr -o hello
             if ($LASTEXITCODE -ne 0) { throw "Hello World compilation failed." }
-            $hello = Get-ChildItem -LiteralPath . -Filter hello.exe -Recurse | Select-Object -First 1
-            if (-not $hello) { throw "Compilation did not produce hello.exe." }
-            $output = (& $hello.FullName).Trim()
+            $hello = Join-Path $moved "build\exec\hello.cmd"
+            if (-not (Test-Path -LiteralPath $hello)) { throw "Compilation did not produce build\exec\hello.cmd." }
+            $output = (& $hello).Trim()
             if ($output -ne "Hello from portable Idris 2!") {
               throw "Unexpected Hello World output: $output"
             }

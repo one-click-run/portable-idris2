@@ -47,7 +47,7 @@ irm "https://raw.githubusercontent.com/one-click-run/portable-idris2/main/init.p
 ```console
 idris2 --version
 idris2 examples\hello\Main.idr -o hello
-build\exec\hello.exe
+build\exec\hello.cmd
 ```
 
 首个版本专注于默认的 Chez 后端。Pack、`idris2-lsp` 和 RefC/MinGW

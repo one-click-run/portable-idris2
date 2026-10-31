@@ -217,8 +217,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0$folderName\Enter-Port
     if (Test-Path -LiteralPath $vscodeEntry) {
         $vscodeLauncherContent = @"
 @echo off
+setlocal
+title Portable Idris 2 - VS Code
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0$folderName\Open-PortableIdris2-VSCode.ps1"
-if errorlevel 1 pause
+set "OCR_EXIT=%ERRORLEVEL%"
+if not "%OCR_EXIT%"=="0" (
+  echo.
+  echo Portable Idris 2 VS Code startup failed. See the message above.
+  pause
+)
+exit /b %OCR_EXIT%
 "@
         [IO.File]::WriteAllText($vscodeLauncher, $vscodeLauncherContent, [Text.UTF8Encoding]::new($false))
     }

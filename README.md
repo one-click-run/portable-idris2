@@ -2,9 +2,9 @@
 
 在当前目录生成完整、可移动的 Windows Idris 2 开发环境。
 
-环境包含 Idris 2、标准库和带线程支持的 Chez Scheme。它不要求用户预装
-MSYS2、Idris 2 或 Chez Scheme，不会永久修改系统 `PATH`，复制或改名整个
-目录后仍可使用。
+项目同时发布 Core 和 Full 两种环境。Core 包含 Idris 2、标准库和带线程
+支持的 Chez Scheme；Full 额外包含 Pack、`idris2-lsp`、Git、MSYS2、GCC/GMP
+及 RefC 工具链。两者都不会永久修改系统 `PATH`，复制或改名整个目录后仍可使用。
 
 目前仅支持 Windows x86-64。
 
@@ -17,12 +17,20 @@ irm "https://raw.githubusercontent.com/one-click-run/portable-idris2/main/init.p
 ```
 
 安装完成后，双击生成的 `OCR-portable-idris2-<版本>.cmd`。
+当 Release 同时存在 Core 和 Full 时，安装器会显示选择窗口或编号菜单。
 
 也可以无交互指定 Release 资产和安装名称：
 
 ```powershell
 $env:ONE_CLICK_RUN_PORTABLE_IDRIS2_SELECTED_ASSET = "portable-idris2-0.8.0-windows-x86_64.zip"
 $env:ONE_CLICK_RUN_PORTABLE_IDRIS2_INSTALL_NAME = "work"
+irm "https://raw.githubusercontent.com/one-click-run/portable-idris2/main/init.ps1" | iex
+```
+
+安装 Full 版：
+
+```powershell
+$env:ONE_CLICK_RUN_PORTABLE_IDRIS2_SELECTED_ASSET = "portable-idris2-full-0.8.0-windows-x86_64.zip"
 irm "https://raw.githubusercontent.com/one-click-run/portable-idris2/main/init.ps1" | iex
 ```
 
@@ -42,6 +50,14 @@ irm "https://raw.githubusercontent.com/one-click-run/portable-idris2/main/init.p
 - Chez 后端所需的 MinGW 运行库
 - `examples/hello/Main.idr` 示例
 
+Full 版另外包含：
+
+- Pack 及与 Idris 2 `v0.8.0` 对应的固定 package collection
+- `idris2-lsp` 及其依赖和源码索引
+- 可移动的 MSYS2、Git、Bash、Make、GCC 与 GMP 开发环境
+- 可直接使用的 RefC 后端
+- 位于便携目录内的 Pack 配置、状态、包缓存和 Git 配置
+
 进入环境后可以运行：
 
 ```console
@@ -50,8 +66,14 @@ idris2 examples\hello\Main.idr -o hello
 build\exec\hello.cmd
 ```
 
-首个版本专注于默认的 Chez 后端。Pack、`idris2-lsp` 和 RefC/MinGW
-完整开发工具链会在 Core 版本稳定后加入，避免让基础下载包无谓膨胀。
+Full 版还可以运行：
+
+```console
+pack help
+idris2-lsp
+idris2 --cg refc examples\hello\Main.idr -o hello-refc
+build\exec\hello-refc.exe
+```
 
 ## 维护者发布工具链
 
@@ -60,9 +82,10 @@ build\exec\hello.cmd
 3. 输入 Idris 2 与 Chez Scheme 版本，或保留默认值。
 4. 运行工作流。
 
-工作流将构建 Chez Scheme、从官方 bootstrap 源码自举 Idris 2、收集运行时
-依赖、执行迁移测试、生成 ZIP 和 SHA-256，并上传到固定的 `toolchain`
-Release。发布后还会重新运行公开的一行安装器并编译 Hello World。
+工作流将构建 Chez Scheme、从官方 bootstrap 源码自举 Idris 2、构建 Pack
+及 LSP、收集 MSYS2/MinGW 工具链、执行 Chez 与 RefC 迁移测试、生成两种 ZIP
+和 SHA-256，并上传到固定的 `toolchain` Release。发布后还会重新运行公开的
+一行安装器验证 Core 与 Full。
 
 ## 安全与来源
 

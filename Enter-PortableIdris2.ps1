@@ -12,12 +12,38 @@ function Add-Path([string]$Path) {
     }
 }
 
-$idrisPrefix = Join-Path $root "idris2"
+$coreIdrisPrefix = Join-Path $root "idris2"
 $chezRoot = Join-Path $root "chez"
 $chezBin = Join-Path $chezRoot "bin\ta6nt"
 $runtime = Join-Path $root "runtime"
 $data = Join-Path $root "data"
 $schemeExe = Join-Path $chezBin "scheme.exe"
+$packState = Join-Path $data "pack-state"
+$packUser = Join-Path $data "pack-config"
+$packCache = Join-Path $data "pack-cache"
+$portableBin = Join-Path $root "bin"
+$msysRoot = Join-Path $root "msys2"
+$isFull = Test-Path -LiteralPath (Join-Path $packState "pack.toml")
+
+$idrisPrefix = $coreIdrisPrefix
+if ($isFull) {
+    $managedIdris = Get-ChildItem -LiteralPath (Join-Path $packState "install") -Filter "idris2.cmd" -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.Directory.Name -eq "bin" } |
+        Select-Object -First 1
+    if (-not $managedIdris) {
+        throw "The Pack-managed Idris 2 compiler is missing from the Full environment."
+    }
+    $idrisPrefix = $managedIdris.Directory.Parent.FullName
+    $env:HOME = Join-Path $data "home"
+    $env:PACK_USER_DIR = $packUser
+    $env:PACK_STATE_DIR = $packState
+    $env:PACK_CACHE_DIR = $packCache
+    $env:PACK_BIN_DIR = $portableBin
+    $env:GIT_CONFIG_GLOBAL = Join-Path $data "gitconfig"
+    $env:MSYSTEM = "MINGW64"
+    $env:MSYS2_PATH_TYPE = "inherit"
+    $env:IDRIS2_CC = "gcc"
+}
 
 $env:IDRIS2_PREFIX = $idrisPrefix
 # Idris passes CHEZ to a command shell. A full path containing spaces is split
@@ -33,12 +59,30 @@ $env:XDG_STATE_HOME = Join-Path $data "xdg-state"
 @($data, $env:XDG_CACHE_HOME, $env:XDG_CONFIG_HOME, $env:XDG_DATA_HOME, $env:XDG_STATE_HOME) |
     ForEach-Object { New-Item -ItemType Directory -Path $_ -Force | Out-Null }
 
+if ($isFull) {
+    @($env:HOME, $packUser, $packState, $packCache, $portableBin) |
+        ForEach-Object { New-Item -ItemType Directory -Path $_ -Force | Out-Null }
+    Add-Path (Join-Path $msysRoot "usr\bin")
+    Add-Path (Join-Path $msysRoot "mingw64\bin")
+}
+
 Add-Path $runtime
 Add-Path $chezBin
 Add-Path (Join-Path $idrisPrefix "bin")
+if ($isFull) {
+    Add-Path $portableBin
+    $packagePath = (& pack package-path 2>$null | Out-String).Trim()
+    if ($LASTEXITCODE -eq 0 -and $packagePath) { $env:IDRIS2_PACKAGE_PATH = $packagePath }
+    $libsPath = (& pack libs-path 2>$null | Out-String).Trim()
+    if ($LASTEXITCODE -eq 0 -and $libsPath) { $env:IDRIS2_LIBS = $libsPath }
+    $dataPath = (& pack data-path 2>$null | Out-String).Trim()
+    if ($LASTEXITCODE -eq 0 -and $dataPath) { $env:IDRIS2_DATA = $dataPath }
+}
 
 if ($Check) {
-    foreach ($tool in @("idris2", "scheme")) {
+    $tools = @("idris2", "scheme")
+    if ($isFull) { $tools += @("pack", "idris2-lsp", "gcc", "git", "bash", "make") }
+    foreach ($tool in $tools) {
         $resolved = Get-Command $tool -ErrorAction SilentlyContinue
         if (-not $resolved) {
             throw "Missing tool: $tool"
@@ -57,13 +101,22 @@ if ($Check) {
     if ($LASTEXITCODE -ne 0) { throw "idris2 --version failed." }
     & $schemeExe --version
     if ($LASTEXITCODE -ne 0) { throw "scheme --version failed." }
+    if ($isFull) {
+        & pack help | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "pack help failed." }
+        & git --version
+        if ($LASTEXITCODE -ne 0) { throw "git --version failed." }
+        & gcc --version | Select-Object -First 1
+        if ($LASTEXITCODE -ne 0) { throw "gcc --version failed." }
+    }
     exit 0
 }
 
 $host.UI.RawUI.WindowTitle = "Portable Idris 2"
 Write-Host "Portable Idris 2 environment" -ForegroundColor Green
 Write-Host (& idris2 --version)
-Write-Host "Backend: Chez Scheme"
+Write-Host ("Edition: " + $(if ($isFull) { "Full (Pack, LSP, RefC/MinGW)" } else { "Core" }))
+Write-Host "Default backend: Chez Scheme"
 Write-Host "This folder can be moved; the current session does not modify the system PATH." -ForegroundColor DarkGray
 & $env:ComSpec /K "prompt (portable-idris2) `$P`$G"
 

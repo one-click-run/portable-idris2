@@ -11,6 +11,14 @@ on:
         description: Chez Scheme release tag
         required: true
         default: v10.4.1
+      pack_collection:
+        description: Pack collection pinned to the Idris release
+        required: true
+        default: nightly-251031
+      pack_commit:
+        description: Pack commit compatible with the collection
+        required: true
+        default: cb842e66c7e9834fae9cdf05ba33ca64fbec949f
 
 permissions:
   contents: write
@@ -28,14 +36,16 @@ jobs:
       - name: Install MSYS2 build dependencies
         shell: powershell
         run: |
-          C:\msys64\usr\bin\bash.exe -l -c "pacman -S --noconfirm --needed tar make mingw-w64-x86_64-gcc"
+          C:\msys64\usr\bin\bash.exe -l -c "pacman -S --noconfirm --needed base-devel git make tar mingw-w64-x86_64-gcc mingw-w64-x86_64-gmp"
 
-      - name: Build portable toolchain from source
+      - name: Build Core and Full toolchains from source
         shell: powershell
         run: |
-          .\scripts\build-toolchain.ps1 `
+          .\scripts\build-full-toolchain.ps1 `
             -IdrisVersion '${{ inputs.idris2 }}' `
             -ChezVersion '${{ inputs.chez }}' `
+            -PackCollection '${{ inputs.pack_collection }}' `
+            -PackCommit '${{ inputs.pack_commit }}' `
             -OutputDirectory "$env:RUNNER_TEMP\dist"
 
       - name: Relocation and compilation smoke test
@@ -46,9 +56,18 @@ jobs:
           & powershell -NoProfile -ExecutionPolicy Bypass -File "$moved\Enter-PortableIdris2.ps1" -Check
           if ($LASTEXITCODE -ne 0) { throw "Relocated self-check failed." }
 
-          $env:IDRIS2_PREFIX = Join-Path $moved "idris2"
+          $env:HOME = Join-Path $moved "data\home"
+          $env:PACK_USER_DIR = Join-Path $moved "data\pack-config"
+          $env:PACK_STATE_DIR = Join-Path $moved "data\pack-state"
+          $env:PACK_CACHE_DIR = Join-Path $moved "data\pack-cache"
+          $env:PACK_BIN_DIR = Join-Path $moved "bin"
+          $managedIdris = Get-ChildItem -LiteralPath "$env:PACK_STATE_DIR\install" -Filter idris2.cmd -Recurse |
+            Where-Object { $_.Directory.Name -eq "bin" } | Select-Object -First 1
+          if (-not $managedIdris) { throw "Pack-managed Idris 2 was not found." }
+          $env:IDRIS2_PREFIX = $managedIdris.Directory.Parent.FullName
           $env:CHEZ = "scheme"
-          $env:PATH = "$(Join-Path $moved 'idris2\bin');$(Join-Path $moved 'chez\bin\ta6nt');$(Join-Path $moved 'runtime');$env:PATH"
+          $env:IDRIS2_CC = "gcc"
+          $env:PATH = "$(Join-Path $moved 'bin');$($managedIdris.Directory.FullName);$(Join-Path $moved 'chez\bin\ta6nt');$(Join-Path $moved 'runtime');$(Join-Path $moved 'msys2\mingw64\bin');$(Join-Path $moved 'msys2\usr\bin');$env:PATH"
           Push-Location $moved
           try {
             & idris2 .\examples\hello\Main.idr -o hello
@@ -58,6 +77,15 @@ jobs:
             $output = (& $hello).Trim()
             if ($output -ne "Hello from portable Idris 2!") {
               throw "Unexpected Hello World output: $output"
+            }
+
+            & idris2 --cg refc .\examples\hello\Main.idr -o hello-refc
+            if ($LASTEXITCODE -ne 0) { throw "RefC compilation failed." }
+            $refc = Get-ChildItem -LiteralPath . -Filter hello-refc.exe -Recurse | Select-Object -First 1
+            if (-not $refc) { throw "RefC did not produce hello-refc.exe." }
+            $refcOutput = (& $refc.FullName).Trim()
+            if ($refcOutput -ne "Hello from portable Idris 2!") {
+              throw "Unexpected RefC output: $refcOutput"
             }
           } finally {
             Pop-Location
@@ -69,7 +97,9 @@ jobs:
           tag_name: toolchain
           name: Portable Idris 2 toolchain
           body: |
-            Windows x86-64 portable Idris 2 and Chez Scheme toolchain built from pinned upstream source releases.
+            Windows x86-64 portable Idris 2 toolchains built from pinned upstream sources.
+
+            Core contains Idris 2 and Chez Scheme. Full adds Pack, idris2-lsp, Git, MSYS2, GCC/GMP, and the RefC backend toolchain.
 
             Every ZIP has a matching SHA-256 file. The installer refuses unverified archives.
           prerelease: false
@@ -82,20 +112,23 @@ jobs:
       - name: End-to-end test the public one-line installer
         shell: powershell
         run: |
-          $testRoot = Join-Path $env:RUNNER_TEMP "public-installer-e2e"
-          New-Item -ItemType Directory -Path $testRoot -Force | Out-Null
-          Push-Location $testRoot
-          try {
-            $asset = (Get-ChildItem "$env:RUNNER_TEMP\dist\portable-idris2-*.zip" | Select-Object -First 1).Name
-            $env:ONE_CLICK_RUN_PORTABLE_IDRIS2_SELECTED_ASSET = $asset
-            $env:ONE_CLICK_RUN_PORTABLE_IDRIS2_INSTALL_NAME = "e2e"
-            $installer = "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/init.ps1"
-            Invoke-RestMethod $installer | Invoke-Expression
+          $assets = Get-ChildItem "$env:RUNNER_TEMP\dist\portable-idris2-*.zip"
+          foreach ($assetFile in $assets) {
+            $label = if ($assetFile.Name -like '*-full-*') { 'full-e2e' } else { 'core-e2e' }
+            $testRoot = Join-Path $env:RUNNER_TEMP $label
+            New-Item -ItemType Directory -Path $testRoot -Force | Out-Null
+            Push-Location $testRoot
+            try {
+              $env:ONE_CLICK_RUN_PORTABLE_IDRIS2_SELECTED_ASSET = $assetFile.Name
+              $env:ONE_CLICK_RUN_PORTABLE_IDRIS2_INSTALL_NAME = $label
+              $installer = "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/init.ps1"
+              Invoke-RestMethod $installer | Invoke-Expression
 
-            $portableRoot = Join-Path $testRoot "OCR-portable-idris2-e2e"
-            & powershell -NoProfile -ExecutionPolicy Bypass -File "$portableRoot\Enter-PortableIdris2.ps1" -Check
-            if ($LASTEXITCODE -ne 0) { throw "Public installation self-check failed." }
-          } finally {
-            Pop-Location
+              $portableRoot = Join-Path $testRoot "OCR-portable-idris2-$label"
+              & powershell -NoProfile -ExecutionPolicy Bypass -File "$portableRoot\Enter-PortableIdris2.ps1" -Check
+              if ($LASTEXITCODE -ne 0) { throw "Public installation self-check failed for $($assetFile.Name)." }
+            } finally {
+              Pop-Location
+            }
           }
 

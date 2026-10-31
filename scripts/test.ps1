@@ -5,7 +5,8 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $files = @(
     "init.ps1",
     "Enter-PortableIdris2.ps1",
-    "scripts\build-toolchain.ps1"
+    "scripts\build-toolchain.ps1",
+    "scripts\build-full-toolchain.ps1"
 )
 
 foreach ($file in $files) {

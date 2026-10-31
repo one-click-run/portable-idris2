@@ -1,0 +1,17 @@
+diff --git a/src/Pack/Core/IO.idr b/src/Pack/Core/IO.idr
+index 60f27dc..319aef7 100644
+--- a/src/Pack/Core/IO.idr
++++ b/src/Pack/Core/IO.idr
+@@ -102,7 +102,10 @@ sys cmd = do
+ ||| Tries to create a director (including parent directories)
+ export
+ mkDir : HasIO io => (dir : Path Abs) -> EitherT PackErr io ()
+ mkDir (PAbs _ [<]) = pure ()
+-mkDir d            = sys ["mkdir", "-p", d]
++-- This Pack build targets native Windows. cmd.exe resolves `mkdir` as its
++-- built-in command before MSYS2's mkdir.exe; the built-in already creates
++-- parent directories and rejects the Unix-only `-p` flag.
++mkDir d            = sys ["mkdir", d]
+ 
+ ||| Creates a parent directory of a (file) path
+ export

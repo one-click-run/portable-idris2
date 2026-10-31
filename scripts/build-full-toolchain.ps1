@@ -148,6 +148,9 @@ foreach ($dependency in @(
 }
 
 $packSource = Get-Source "pack" "https://github.com/stefan-hoeck/idris2-pack" $PackCommit
+Invoke-Native {
+    git -C $packSource apply --whitespace=nowarn (Join-Path $repoRoot "patches\pack-windows-mkdir.patch")
+} "Applying the audited Pack Windows compatibility patch"
 Push-Location $packSource
 try {
     Invoke-Native { & $idrisCmd --build pack.ipkg } "Building Pack"

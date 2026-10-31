@@ -1,5 +1,5 @@
 diff --git a/src/Pack/Core/IO.idr b/src/Pack/Core/IO.idr
-index e359ded..af6f859 100644
+index e359ded..9fce120 100644
 --- a/src/Pack/Core/IO.idr
 +++ b/src/Pack/Core/IO.idr
 @@ -194,7 +194,10 @@ fileMissing = map not . fileExists
@@ -8,10 +8,10 @@ index e359ded..af6f859 100644
  mkDir : HasIO io => (dir : Path Abs) -> EitherT PackErr io ()
  mkDir (PAbs _ [<]) = pure ()
 -mkDir d            = sys ["mkdir", "-p", d]
-+-- This Pack build targets native Windows. Explicitly use MSYS2's executable:
-+-- cmd.exe otherwise resolves `mkdir` as its built-in command, which rejects
-+-- `-p` and Pack's drive-letter paths containing forward slashes.
-+mkDir d            = sys ["mkdir.exe", "-p", d]
++-- This Pack build targets native Windows. Run mkdir through MSYS2's external
++-- env.exe so cmd.exe cannot intercept it as a built-in command. The GNU tool
++-- supports `-p` and Pack's drive-letter paths containing forward slashes.
++mkDir d            = sys ["env.exe", "mkdir", "-p", d]
  
  ||| Creates a parent directory of a (file) path
  export

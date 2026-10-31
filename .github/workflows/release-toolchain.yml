@@ -37,6 +37,13 @@ jobs:
         shell: powershell
         run: |
           C:\msys64\usr\bin\bash.exe -l -c "pacman -S --noconfirm --needed base-devel git make tar mingw-w64-x86_64-gcc mingw-w64-x86_64-gmp"
+          $env:PATH = "C:\msys64\usr\bin;$env:PATH"
+          $nativeProbe = Join-Path $env:RUNNER_TEMP "pack-env-mkdir-probe"
+          $mixedProbe = $nativeProbe.Substring(0, 3) + ($nativeProbe.Substring(3) -replace '\\', '/')
+          & $env:ComSpec /d /c "env.exe mkdir -p $mixedProbe"
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $nativeProbe)) {
+            throw "MSYS2 env.exe could not create Pack's mixed-separator path."
+          }
 
       - name: Build Core and Full toolchains from source
         shell: powershell

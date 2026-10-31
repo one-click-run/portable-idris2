@@ -16,7 +16,7 @@ index e359ded..9fce120 100644
  ||| Creates a parent directory of a (file) path
  export
 diff --git a/src/Pack/Core/Git.idr b/src/Pack/Core/Git.idr
-index f48cda3..1de9f58 100644
+index f48cda3..81fed72 100644
 --- a/src/Pack/Core/Git.idr
 +++ b/src/Pack/Core/Git.idr
 @@ -21,7 +21,11 @@ parameters {auto has : HasIO io}
@@ -25,9 +25,9 @@ index f48cda3..1de9f58 100644
    cloneRemote : (url : URL) -> (dest : Path Abs) -> EitherT PackErr io ()
 -  cloneRemote url dest = sys ["git", "clone", "--depth", "1", "-q", url, dest]
 +  cloneRemote url dest = do
-+    -- Windows path normalization can leave the intended clone destination
-+    -- behind while creating its parent. Git requires it to be absent.
-+    rmDir dest
++    -- Windows can report a false negative for mixed-separator paths. This
++    -- branch is rebuilding the cache, so remove the destination unconditionally.
++    sys ["env.exe", "rm", "-rf", dest]
 +    sys ["git", "clone", "--depth", "1", "-q", url, dest]
  
    ||| Creates a shared clone of a cached local git clone

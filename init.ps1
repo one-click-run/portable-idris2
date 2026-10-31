@@ -30,6 +30,23 @@ function Receive-File([string]$Uri, [string]$Destination) {
     Invoke-WebRequest -Uri $Uri -Headers $headers -OutFile $Destination
 }
 
+function Expand-ToolchainArchive([string]$ArchivePath, [string]$DestinationPath) {
+    # Windows PowerShell 5.1's Expand-Archive can fail while cleaning entries
+    # from large archives (PathNotFound in Microsoft.PowerShell.Archive). The
+    # system bsdtar is both streaming and substantially more reliable here.
+    $tar = Get-Command tar.exe -ErrorAction SilentlyContinue
+    if ($tar) {
+        & $tar.Source -xf $ArchivePath -C $DestinationPath
+        if ($LASTEXITCODE -ne 0) {
+            throw "tar failed to extract the verified toolchain archive (exit code $LASTEXITCODE)."
+        }
+        return
+    }
+
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [IO.Compression.ZipFile]::ExtractToDirectory($ArchivePath, $DestinationPath)
+}
+
 function Select-Asset($Assets) {
     if ($SelectedAsset) {
         $match = @($Assets | Where-Object { $_.name -eq $SelectedAsset })
@@ -128,20 +145,38 @@ $work = Join-Path $installBase ".$folderName.installing"
 $archive = Join-Path $work $asset.name
 $checksumFile = Join-Path $work $checksumName
 $staging = Join-Path $work "payload"
+$installationComplete = $false
 try {
-    if (Test-Path -LiteralPath $work) {
-        Remove-Item -LiteralPath $work -Recurse -Force
+    New-Item -ItemType Directory -Path $work -Force | Out-Null
+    if (Test-Path -LiteralPath $staging) {
+        Remove-Item -LiteralPath $staging -Recurse -Force
     }
-    New-Item -ItemType Directory -Path $work, $staging | Out-Null
+    New-Item -ItemType Directory -Path $staging | Out-Null
 
     if ($localArchive) {
         Write-Step "Verifying the local release files"
         $archiveForInstall = $localArchive
         $checksumForInstall = $localChecksum
     } else {
-        Write-Step "Downloading $($asset.name)"
-        Receive-File -Uri $asset.browser_download_url -Destination $archive
-        Receive-File -Uri $checksumAsset[0].browser_download_url -Destination $checksumFile
+        $cachedArchiveIsValid = $false
+        if ((Test-Path -LiteralPath $archive) -and (Test-Path -LiteralPath $checksumFile)) {
+            $cachedExpected = ([regex]::Match([IO.File]::ReadAllText($checksumFile), '(?i)\b[0-9a-f]{64}\b')).Value.ToLowerInvariant()
+            if ($cachedExpected) {
+                Write-Step "Checking the previously downloaded archive"
+                $cachedActual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+                $cachedArchiveIsValid = ($cachedActual -eq $cachedExpected)
+            }
+        }
+        if ($cachedArchiveIsValid) {
+            Write-Step "Reusing the verified download $($asset.name)"
+        } else {
+            Write-Step "Downloading $($asset.name)"
+            Receive-File -Uri $asset.browser_download_url -Destination $archive
+            if (Test-Path -LiteralPath $checksumFile) {
+                Remove-Item -LiteralPath $checksumFile -Force
+            }
+            Receive-File -Uri $checksumAsset[0].browser_download_url -Destination $checksumFile
+        }
         $archiveForInstall = $archive
         $checksumForInstall = $checksumFile
     }
@@ -156,9 +191,14 @@ try {
     }
 
     Write-Step "Extracting the toolchain"
-    Expand-Archive -LiteralPath $archiveForInstall -DestinationPath $staging
+    Expand-ToolchainArchive -ArchivePath $archiveForInstall -DestinationPath $staging
     if (-not (Test-Path -LiteralPath (Join-Path $staging "Enter-PortableIdris2.ps1"))) {
         throw "The toolchain archive has an invalid layout."
+    }
+    Write-Step "Checking the extracted toolchain"
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $staging "Enter-PortableIdris2.ps1") -Check
+    if ($LASTEXITCODE -ne 0) {
+        throw "The extracted toolchain failed its self-check. Antivirus quarantine or an incomplete extraction may be responsible."
     }
     Move-Item -LiteralPath $staging -Destination $destination
 
@@ -168,9 +208,15 @@ cd /d "%~dp0"
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0$folderName\Enter-PortableIdris2.ps1"
 "@
     [IO.File]::WriteAllText($launcher, $launcherContent, [Text.UTF8Encoding]::new($false))
+    $installationComplete = $true
 } finally {
-    if (Test-Path -LiteralPath $work) {
+    if ($installationComplete -and (Test-Path -LiteralPath $work)) {
         Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
+    } elseif (Test-Path -LiteralPath $staging) {
+        Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue
+        if (-not $localArchive -and (Test-Path -LiteralPath $archive)) {
+            Write-Warning "Installation failed. The downloaded archive was kept at $archive so the next run can resume without starting over."
+        }
     }
 }
 

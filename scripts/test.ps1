@@ -28,6 +28,14 @@ foreach ($required in @("Get-FileHash", "SHA-256", "browser_download_url", "Ente
         throw "init.ps1 is missing required installer behavior: $required"
     }
 }
+foreach ($required in @("Expand-ToolchainArchive", "tar.exe", "Checking the extracted toolchain", '$installationComplete')) {
+    if (-not $init.Contains($required)) {
+        throw "init.ps1 is missing resilient extraction behavior: $required"
+    }
+}
+if ($init -match '(?m)^\s*Expand-Archive\b') {
+    throw "init.ps1 must not use the unreliable Windows PowerShell Expand-Archive path."
+}
 
 $launcher = Get-Content -LiteralPath (Join-Path $repoRoot "Enter-PortableIdris2.ps1") -Raw
 foreach ($required in @("IDRIS2_PREFIX", "CHEZ", "XDG_CACHE_HOME", '$PSScriptRoot')) {

@@ -1,8 +1,30 @@
 diff --git a/src/Pack/Core/IO.idr b/src/Pack/Core/IO.idr
-index e359ded..9fce120 100644
+index e359ded..11137a6 100644
 --- a/src/Pack/Core/IO.idr
 +++ b/src/Pack/Core/IO.idr
-@@ -194,7 +194,10 @@ fileMissing = map not . fileExists
+@@ -171,14 +171,19 @@ sysRunWithEnv cmd env = do
+ --------------------------------------------------------------------------------
+ 
+ ||| Checks if a file at the given location exists.
++pathExists : HasIO io => String -> io Bool
++pathExists path = do
++  (_, code) <- System.run (escapeCmd ["env.exe", "test", "-e", path])
++  pure (code == 0)
++
+ export %inline
+ exists : HasIO io => (dir : Path Abs) -> io Bool
+-exists = exists . interpolate
++exists = pathExists . interpolate
+ 
+ ||| Checks if a file at the given location exists.
+ export %inline
+ fileExists : HasIO io => (f : File Abs) -> io Bool
+-fileExists = exists . interpolate
++fileExists = pathExists . interpolate
+ 
+ ||| Checks if a file at the given location is missing.
+ export
+@@ -194,7 +199,10 @@ fileMissing = map not . fileExists
  ||| Tries to create a director (including parent directories)
  export
  mkDir : HasIO io => (dir : Path Abs) -> EitherT PackErr io ()

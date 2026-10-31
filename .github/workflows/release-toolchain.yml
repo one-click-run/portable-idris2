@@ -44,6 +44,10 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $nativeProbe)) {
             throw "MSYS2 env.exe could not create Pack's mixed-separator path."
           }
+          & $env:ComSpec /d /c "env.exe test -e $mixedProbe"
+          if ($LASTEXITCODE -ne 0) {
+            throw "MSYS2 test could not detect Pack's mixed-separator path."
+          }
           & $env:ComSpec /d /c "env.exe rm -rf $mixedProbe"
           if ($LASTEXITCODE -ne 0 -or (Test-Path -LiteralPath $nativeProbe)) {
             throw "MSYS2 env.exe could not remove Pack's mixed-separator path."

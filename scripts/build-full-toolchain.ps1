@@ -149,7 +149,10 @@ foreach ($dependency in @(
 
 $packSource = Get-Source "pack" "https://github.com/stefan-hoeck/idris2-pack" $PackCommit
 Invoke-Native {
-    git -C $packSource apply --whitespace=nowarn (Join-Path $repoRoot "patches\pack-windows-mkdir.patch")
+    # GitHub's Windows runner checks text files out with CRLF. The audited
+    # patch is stored with the upstream repository's LF line endings, so
+    # ignore whitespace differences while matching its unchanged context.
+    git -C $packSource apply --ignore-space-change --whitespace=nowarn (Join-Path $repoRoot "patches\pack-windows-mkdir.patch")
 } "Applying the audited Pack Windows compatibility patch"
 Push-Location $packSource
 try {

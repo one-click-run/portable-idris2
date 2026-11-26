@@ -1,6 +1,23 @@
 name: Publish toolchain
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - Enter-PortableIdris2.ps1
+      - Launch-Idris2-LSP.cmd
+      - Launch-Idris2-LSP.ps1
+      - Open-PortableIdris2-VSCode.ps1
+      - LICENSE
+      - OFFLINE-GUARANTEE.md
+      - THIRD_PARTY_NOTICES.md
+      - examples/**
+      - native/**
+      - patches/**
+      - scripts/**
+      - vscode/**
+      - vscode-extensions/**
+      - .github/workflows/release-toolchain.yml
   workflow_dispatch:
     inputs:
       idris2:
@@ -26,6 +43,10 @@ on:
 
 permissions:
   contents: write
+
+concurrency:
+  group: publish-toolchain
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -61,11 +82,11 @@ jobs:
         shell: powershell
         run: |
           .\scripts\build-full-toolchain.ps1 `
-            -IdrisVersion '${{ inputs.idris2 }}' `
-            -ChezVersion '${{ inputs.chez }}' `
-            -PackCollection '${{ inputs.pack_collection }}' `
-            -PackCommit '${{ inputs.pack_commit }}' `
-            -PackDbCommit '${{ inputs.pack_db_commit }}' `
+            -IdrisVersion '${{ inputs.idris2 || 'v0.8.0' }}' `
+            -ChezVersion '${{ inputs.chez || 'v10.4.1' }}' `
+            -PackCollection '${{ inputs.pack_collection || 'nightly-251031' }}' `
+            -PackCommit '${{ inputs.pack_commit || 'cb842e66c7e9834fae9cdf05ba33ca64fbec949f' }}' `
+            -PackDbCommit '${{ inputs.pack_db_commit || '69ddc094a218941bba5516828c2ee1dfdcc640f5' }}' `
             -OutputDirectory "$env:RUNNER_TEMP\dist"
 
       - name: Relocation and compilation smoke test

@@ -134,6 +134,20 @@ jobs:
             Pop-Location
           }
 
+      - name: Provision VS Code host for integration test
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP "vscode-win32-x64.zip"
+          $codeRoot = Join-Path $env:RUNNER_TEMP "vscode-host"
+          curl.exe --fail --location --silent --show-error `
+            "https://update.code.visualstudio.com/latest/win32-x64-archive/stable" `
+            --output $archive
+          if ($LASTEXITCODE -ne 0) { throw "Failed to download the VS Code integration-test host." }
+          [IO.Compression.ZipFile]::ExtractToDirectory($archive, $codeRoot)
+          $code = Join-Path $codeRoot "bin\code.cmd"
+          if (-not (Test-Path -LiteralPath $code -PathType Leaf)) { throw "VS Code CLI is missing after extraction." }
+          "ONE_CLICK_RUN_VSCODE=$code" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Air-gapped local archive installation test
         shell: powershell
         run: |
